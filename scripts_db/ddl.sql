@@ -37,3 +37,33 @@ CREATE TABLE categorias (
   nombre varchar(50) NOT NULL,
   descripcion varchar(200) NOT NULL
 );
+
+
+-- Tabla Ingredientes
+CREATE TABLE ingredientes (
+  id_ingrediente serial PRIMARY KEY,
+  nombre_producto varchar(50) NOT NULL,
+  cantidad int NOT NULL CHECK (cantidad >= 0),
+  lote varchar(100)
+);
+
+-- Tabla de Relación Producto-Ingrediente
+CREATE TABLE ingrediente_producto (
+  id_ingrediente int NOT NULL REFERENCES ingredientes(id_ingrediente) ON DELETE CASCADE,
+  id_producto int NOT NULL REFERENCES productos(id_producto) ON DELETE CASCADE,
+  PRIMARY KEY (id_ingrediente, id_producto)
+);
+
+-- Métodos de Pago
+CREATE TABLE metodos_pago (
+  id serial PRIMARY KEY,
+  metodo_pago varchar(50) UNIQUE NOT NULL
+);
+
+-- Pagos
+CREATE TABLE pago (
+  id_pago serial PRIMARY KEY,
+  id_pedido int NOT NULL REFERENCES pedidos(id_pedido),
+  id_metodo_pago int NOT NULL REFERENCES metodos_pago(id),
+  fecha timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
