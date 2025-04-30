@@ -1,0 +1,61 @@
+
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: db_proyecto3
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: api_user
+      POSTGRES_PASSWORD: ApiPass123
+      POSTGRES_DB: coffee_shop
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./backend/scripts_db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U api_user -d coffee_shop"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  backend:
+    container_name: backend_proyecto3
+    build: ./backend
+    ports:
+      - "5000:3030"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: api_user
+      DB_PASSWORD: ApiPass123
+      DB_NAME: coffee_shop
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  frontend:
+    container_name: frontend_proyecto3
+    build:
+      context: ./frontend/proyecto3_db  
+      dockerfile: Dockerfile 
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  db_data:
+
+networks:
+  app-network:
+    driver: bridge
