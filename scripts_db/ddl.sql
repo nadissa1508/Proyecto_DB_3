@@ -38,6 +38,49 @@ CREATE TABLE categorias (
   descripcion varchar(200) NOT NULL
 );
 
+-- Tabla de Productos
+CREATE TABLE productos (
+  id_producto serial PRIMARY KEY,
+  id_categoria int NOT NULL REFERENCES categorias(id_categoria),
+  nombre varchar(100) NOT NULL,
+  descripcion varchar(255) NOT NULL,
+  precio decimal(10,2) NOT NULL CHECK (precio >= 0),
+  costo decimal(10,2) NOT NULL CHECK (costo >= 0),
+  disponibilidad boolean NOT NULL DEFAULT true
+);
+
+-- Tabla Localizaciones
+CREATE TABLE localizaciones (
+  id serial PRIMARY KEY,
+  tipo tipo_localizacion_enum NOT NULL,
+  numero varchar(5) 
+);
+
+-- Tabla de Pedidos
+CREATE TABLE pedidos (
+  id_pedido serial PRIMARY KEY,
+  id_cliente int NOT NULL REFERENCES clientes(id_cliente),
+  id_empleado int NOT NULL REFERENCES empleados(id_empleado),
+  id_localizacion int REFERENCES localizaciones(id),
+  fecha_hora timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  estado estado_pedido_enum NOT NULL,
+  tipo_pedido tipo_pedido_enum NOT NULL,
+  total decimal(10,2) NOT NULL CHECK (total >= 0),
+  cupon decimal(10,2) NOT NULL DEFAULT 0 CHECK (cupon >= 0),
+  notas varchar(500),
+  hora_entrega_esperada timestamp NOT NULL
+);
+
+-- Tabla Detalles de Pedido
+CREATE TABLE detalles_pedido (
+  id_detalle serial PRIMARY KEY,
+  id_pedido int NOT NULL REFERENCES pedidos(id_pedido),
+  id_producto int NOT NULL REFERENCES productos(id_producto),
+  cantidad int NOT NULL DEFAULT 1 CHECK (cantidad > 0),
+  precio_unitario decimal(10,2) NOT NULL CHECK (precio_unitario >= 0),
+  subtotal decimal(10,2) NOT NULL CHECK (subtotal >= 0),
+  comentarios varchar(155)
+);
 
 -- Tabla Ingredientes
 CREATE TABLE ingredientes (
@@ -61,7 +104,7 @@ CREATE TABLE metodos_pago (
 );
 
 -- Pagos
-CREATE TABLE pago (
+CREATE TABLE pagos (
   id_pago serial PRIMARY KEY,
   id_pedido int NOT NULL REFERENCES pedidos(id_pedido),
   id_metodo_pago int NOT NULL REFERENCES metodos_pago(id),
