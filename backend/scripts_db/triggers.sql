@@ -7,7 +7,6 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_verificar_stock
 BEFORE INSERT OR UPDATE ON detalles_pedido
@@ -21,7 +20,6 @@ BEGIN
   NEW.fecha_hora = CURRENT_TIMESTAMP;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_registrar_modificacion_pedido
 BEFORE UPDATE ON pedidos
@@ -38,7 +36,6 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_actualizar_stock
 AFTER INSERT ON detalles_pedido
