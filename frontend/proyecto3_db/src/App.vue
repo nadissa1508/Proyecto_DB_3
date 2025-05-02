@@ -1,29 +1,12 @@
 <template>
     <div id="app">
-      <h1>Vue + Docker funcionando ✅</h1>
-      <p>Mensaje del backend:</p>
-      <pre>{{ message }}</pre>
+      <router-view />
     </div>
   </template>
   
   <script>
   export default {
-    data() {
-      return {
-        message: 'Cargando...'
-      };
-    },
-    mounted() {
-      fetch('http://localhost:5000/')
-        .then(res => res.text())
-        .then(data => {
-          this.message = data;
-        })
-        .catch(err => {
-          this.message = 'Error al conectar con el backend 😢';
-          console.error(err);
-        });
-    }
+    name: 'App',
   };
   </script>
   

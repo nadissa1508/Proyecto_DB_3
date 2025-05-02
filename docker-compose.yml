@@ -1,12 +1,10 @@
 
-version: '3.8'
-
 services:
   db:
     image: postgres:15
     container_name: db_proyecto3
     ports:
-      - "5432:5432"
+      - "5438:5432"
     environment:
       POSTGRES_USER: api_user
       POSTGRES_PASSWORD: ApiPass123
@@ -26,7 +24,7 @@ services:
     container_name: backend_proyecto3
     build: ./backend
     ports:
-      - "5000:3030"
+      - "5001:3030"
     depends_on:
       db:
         condition: service_healthy
@@ -46,7 +44,7 @@ services:
       context: ./frontend/proyecto3_db  
       dockerfile: Dockerfile 
     ports:
-      - "8080:80"
+      - "8082:80"
     depends_on:
       - backend
     restart: unless-stopped
