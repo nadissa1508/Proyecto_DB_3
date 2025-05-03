@@ -809,7 +809,6 @@ INSERT INTO ingrediente_producto (id_ingrediente, id_producto) VALUES
 (38, 90),
 (17, 82);
 INSERT INTO pedidos (id_pedido, id_cliente, id_empleado, id_localizacion, estado, tipo_pedido, total, cupon, notas, hora_entrega_esperada) VALUES
--- Los primeros 42 pedidos originales, con id_pedido del 1 al 42
 (1, 97, 63, 14, 'pendiente', 'delivery', 10.69, 2.39, 'Nota del pedido 1', NOW() + interval '30 minutes'),
 (2, 44, 24, 7, 'completado', 'para llevar', 7.28, 0.33, 'Nota del pedido 2', NOW() + interval '30 minutes'),
 (3, 63, 10, 74, 'pendiente', 'local', 7.98, 2.81, 'Nota del pedido 3', NOW() + interval '30 minutes'),
