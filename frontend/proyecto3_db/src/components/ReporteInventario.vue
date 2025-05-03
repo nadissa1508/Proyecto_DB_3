@@ -117,13 +117,7 @@ export default {
       productosDummy: ['Café', 'Leche', 'Azúcar', 'Vasos'],
       ingredientesDummy: ['Grano', 'Leche', 'Azúcar', 'Cartón'],
       lotesDummy: ['Lote 1', 'Lote 2', 'Lote 3'],
-      inventario: [
-        { id: 1, producto: 'Café', ingrediente: 'Grano', disponibilidad: 'Disponible', lote: 'Lote 1', cantidad: 120 },
-        { id: 2, producto: 'Leche', ingrediente: 'Leche', disponibilidad: 'No disponible', lote: 'Lote 2', cantidad: 80 },
-        { id: 3, producto: 'Azúcar', ingrediente: 'Azúcar', disponibilidad: 'Disponible', lote: 'Lote 3', cantidad: 60 },
-        { id: 4, producto: 'Vasos', ingrediente: 'Cartón', disponibilidad: 'Disponible', lote: 'Lote 1', cantidad: 200 },
-        // ...más datos de ejemplo
-      ],
+      inventario: [],
       chartData: null,
       chartOptions: {
         responsive: true,
@@ -133,20 +127,18 @@ export default {
   },
   computed: {
     inventarioFiltrado() {
-      let filtrados = this.inventario.filter(i => {
-        const ingOk = !this.filtroIngrediente || i.ingrediente === this.filtroIngrediente;
-        const loteOk = !this.filtroLote || i.lote === this.filtroLote;
-        const dispOk = !this.filtroDisponibilidad || i.disponibilidad === this.filtroDisponibilidad;
-        const prodOk = !this.filtroProducto || i.producto === this.filtroProducto;
-        return ingOk && loteOk && dispOk && prodOk;
-      });
       const start = (this.pagina - 1) * this.porPagina;
-      return filtrados.slice(start, start + this.porPagina);
+      return this.inventario.slice(start, start + this.porPagina);
     }
   },
   methods: {
-    buscar() {
+    async fetchInventario() {
+      const res = await fetch('http://localhost:3030/api/reportes/inventario');
+      this.inventario = await res.json();
+    },
+    async buscar() {
       this.pagina = 1;
+      await this.fetchInventario();
     },
     exportarPDF() {
       import('html2pdf.js').then(html2pdf => {
@@ -170,9 +162,12 @@ export default {
       this.pagina = 1;
     },
     updateChart() {
-      // Gráfica de cantidad disponible por ingrediente
-      const labels = this.inventarioFiltrado.map(i => i.ingrediente);
-      const data = this.inventarioFiltrado.map(i => i.cantidad);
+      if (!this.inventario.length) {
+        this.chartData = null;
+        return;
+      }
+      const labels = this.inventario.map(i => i.ingrediente);
+      const data = this.inventario.map(i => i.cantidad);
       this.chartData = {
         labels,
         datasets: [
@@ -185,7 +180,8 @@ export default {
       };
     }
   },
-  mounted() {
+  async mounted() {
+    await this.fetchInventario();
     this.updateChart();
   },
   watch: {

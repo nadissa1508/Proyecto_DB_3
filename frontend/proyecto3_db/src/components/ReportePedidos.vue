@@ -112,13 +112,7 @@ export default {
       porPagina: 10,
       estadosDummy: ['Pendiente', 'En preparación', 'Completado', 'Cancelado'],
       tiposPedidoDummy: ['Local', 'Para llevar', 'Delivery'],
-      pedidos: [
-        { id: 101, cliente: 'Ana Pérez', localizacion: 'Sucursal Centro', fecha_hora: '2025-05-01 10:00', total: 50, tipo_pedido: 'Local', estado: 'Completado' },
-        { id: 102, cliente: 'Luis Gómez', localizacion: 'Sucursal Norte', fecha_hora: '2025-05-02 11:00', total: 80, tipo_pedido: 'Para llevar', estado: 'Pendiente' },
-        { id: 103, cliente: 'Pedro Torres', localizacion: 'Sucursal Centro', fecha_hora: '2025-05-02 12:00', total: 60, tipo_pedido: 'Delivery', estado: 'En preparación' },
-        { id: 104, cliente: 'María López', localizacion: 'Sucursal Sur', fecha_hora: '2025-05-03 13:00', total: 40, tipo_pedido: 'Local', estado: 'Cancelado' },
-        // ...más datos de ejemplo
-      ],
+      pedidos: [],
       chartData: null,
       chartOptions: {
         responsive: true,
@@ -128,19 +122,19 @@ export default {
   },
   computed: {
     pedidosFiltrados() {
-      let filtrados = this.pedidos.filter(p => {
-        const fechaOk = (!this.fechaInicio || p.fecha_hora >= this.fechaInicio) && (!this.fechaFin || p.fecha_hora <= this.fechaFin);
-        const estadoOk = !this.filtroEstado || p.estado === this.filtroEstado;
-        const tipoOk = !this.filtroTipoPedido || p.tipo_pedido === this.filtroTipoPedido;
-        return fechaOk && estadoOk && tipoOk;
-      });
       const start = (this.pagina - 1) * this.porPagina;
-      return filtrados.slice(start, start + this.porPagina);
+      return this.pedidos.slice(start, start + this.porPagina);
     }
   },
   methods: {
-    buscar() {
+    async fetchPedidos() {
+      // Puedes agregar filtros como query params si el backend los soporta
+      const res = await fetch('http://localhost:3030/api/reportes/pedidos');
+      this.pedidos = await res.json();
+    },
+    async buscar() {
       this.pagina = 1;
+      await this.fetchPedidos();
     },
     exportarPDF() {
       import('html2pdf.js').then(html2pdf => {
@@ -164,10 +158,16 @@ export default {
       this.pagina = 1;
     },
     updateChart() {
-      // Gráfica de total de pedidos por estado
-      const labels = this.estadosDummy;
+      // Solo actualiza si hay datos
+      if (!this.pedidos.length) {
+        this.chartData = null;
+        return;
+      }
+      // Obtiene los estados únicos de los pedidos reales
+      const estados = [...new Set(this.pedidos.map(p => p.estado))];
+      const labels = estados;
       const data = labels.map(estado =>
-        this.pedidosFiltrados.filter(p => p.estado === estado).length
+        this.pedidos.filter(p => p.estado === estado).length
       );
       this.chartData = {
         labels,
@@ -181,7 +181,8 @@ export default {
       };
     }
   },
-  mounted() {
+  async mounted() {
+    await this.fetchPedidos();
     this.updateChart();
   },
   watch: {

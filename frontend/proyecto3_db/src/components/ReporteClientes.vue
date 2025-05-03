@@ -109,15 +109,9 @@ export default {
       filtroPedidosRealizados: '',
       pagina: 1,
       porPagina: 10,
-      gastosPromedioDummy: [100, 200, 300, 400, 500],
-      pedidosRealizadosDummy: [1, 5, 10, 15, 20],
-      clientes: [
-        { id: 1, nombre: 'Ana Pérez', fecha_registro: '2024-01-10', puntos: 50, gasto_promedio: 500, pedidos_realizados: 12 },
-        { id: 2, nombre: 'Luis Gómez', fecha_registro: '2024-02-15', puntos: 30, gasto_promedio: 350, pedidos_realizados: 9 },
-        { id: 3, nombre: 'Pedro Torres', fecha_registro: '2024-03-20', puntos: 10, gasto_promedio: 210, pedidos_realizados: 7 },
-        { id: 4, nombre: 'María López', fecha_registro: '2024-04-05', puntos: 20, gasto_promedio: 150, pedidos_realizados: 5 },
-        // ...más datos de ejemplo
-      ],
+      gastosPromedioDummy: [],
+      pedidosRealizadosDummy: [],
+      clientes: [],
       chartData: null,
       chartOptions: {
         responsive: true,
@@ -127,22 +121,22 @@ export default {
   },
   computed: {
     clientesFiltrados() {
-      let filtrados = this.clientes.filter(c => {
-        const fechaOk = (!this.fechaInicio || c.fecha_registro >= this.fechaInicio) && (!this.fechaFin || c.fecha_registro <= this.fechaFin);
-        const gastoOk = !this.filtroGastoPromedio || c.gasto_promedio == this.filtroGastoPromedio;
-        const pedidosOk = !this.filtroPedidosRealizados || c.pedidos_realizados == this.filtroPedidosRealizados;
-        return fechaOk && gastoOk && pedidosOk;
-      });
       const start = (this.pagina - 1) * this.porPagina;
-      return filtrados.slice(start, start + this.porPagina);
+      return this.clientes.slice(start, start + this.porPagina);
     },
     totalGeneral() {
       return this.clientesFiltrados.reduce((acc, c) => acc + c.gasto_promedio, 0);
     }
   },
   methods: {
-    buscar() {
+    async fetchClientes() {
+      // Puedes agregar filtros como query params si el backend los soporta
+      const res = await fetch('http://localhost:3030/api/reportes/clientes');
+      this.clientes = await res.json();
+    },
+    async buscar() {
       this.pagina = 1;
+      await this.fetchClientes();
     },
     exportarPDF() {
       import('html2pdf.js').then(html2pdf => {
@@ -166,7 +160,11 @@ export default {
       this.pagina = 1;
     },
     updateChart() {
-      // Agrupa clientes por puntos de fidelización
+      // Solo actualiza si hay datos
+      if (!this.clientesFiltrados.length) {
+        this.chartData = null;
+        return;
+      }
       const labels = this.clientesFiltrados.map(c => c.nombre);
       const data = this.clientesFiltrados.map(c => c.puntos);
       this.chartData = {
@@ -181,7 +179,8 @@ export default {
       };
     }
   },
-  mounted() {
+  async mounted() {
+    await this.fetchClientes();
     this.updateChart();
   },
   watch: {

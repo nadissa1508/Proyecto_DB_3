@@ -113,14 +113,7 @@ export default {
       porPagina: 10,
       tiposPedido: ['Local', 'Para llevar', 'Delivery'],
       metodosPago: ['Efectivo', 'Tarjeta', 'Transferencia'],
-      ventas: [
-        { id: 1, cliente: 'Ana Pérez', vendedor: 'Carlos Ruiz', fecha: '2025-05-01', total: 150, tipo_pedido: 'Local', metodo_pago: 'Efectivo' },
-        { id: 2, cliente: 'Luis Gómez', vendedor: 'Sofía Méndez', fecha: '2025-05-02', total: 200, tipo_pedido: 'Para llevar', metodo_pago: 'Tarjeta' },
-        { id: 3, cliente: 'Pedro Torres', vendedor: 'Carlos Ruiz', fecha: '2025-05-02', total: 120, tipo_pedido: 'Delivery', metodo_pago: 'Transferencia' },
-        { id: 4, cliente: 'María López', vendedor: 'Sofía Méndez', fecha: '2025-05-03', total: 180, tipo_pedido: 'Local', metodo_pago: 'Efectivo' },
-        { id: 5, cliente: 'Ana Pérez', vendedor: 'Carlos Ruiz', fecha: '2025-05-03', total: 90, tipo_pedido: 'Para llevar', metodo_pago: 'Tarjeta' },
-        // ...más datos de ejemplo
-      ],
+      ventas: [],
       chartData: null,
       chartOptions: {
         responsive: true,
@@ -130,23 +123,21 @@ export default {
   },
   computed: {
     ventasFiltradas() {
-      let filtradas = this.ventas.filter(v => {
-        const fechaOk = (!this.fechaInicio || v.fecha >= this.fechaInicio) && (!this.fechaFin || v.fecha <= this.fechaFin);
-        const tipoOk = !this.filtroTipoPedido || v.tipo_pedido === this.filtroTipoPedido;
-        const metodoOk = !this.filtroMetodoPago || v.metodo_pago === this.filtroMetodoPago;
-        return fechaOk && tipoOk && metodoOk;
-      });
-      // paginación
       const start = (this.pagina - 1) * this.porPagina;
-      return filtradas.slice(start, start + this.porPagina);
+      return this.ventas.slice(start, start + this.porPagina);
     },
     totalGeneral() {
       return this.ventasFiltradas.reduce((acc, v) => acc + v.total, 0);
     }
   },
   methods: {
-    buscar() {
+    async fetchVentas() {
+      const res = await fetch('http://localhost:3030/api/reportes/ventas');
+      this.ventas = await res.json();
+    },
+    async buscar() {
       this.pagina = 1;
+      await this.fetchVentas();
     },
     refrescar() {
       this.fechaInicio = '';
@@ -170,10 +161,15 @@ export default {
       });
     },
     updateChart() {
-      // Agrupa ventas por método de pago
-      const labels = this.metodosPago;
+      if (!this.ventas.length) {
+        this.chartData = null;
+        return;
+      }
+      // Obtiene los métodos de pago únicos de los datos reales
+      const metodos = [...new Set(this.ventas.map(v => v.metodo_pago))];
+      const labels = metodos;
       const data = labels.map(metodo =>
-        this.ventasFiltradas.filter(v => v.metodo_pago === metodo).reduce((acc, v) => acc + v.total, 0)
+        this.ventas.filter(v => v.metodo_pago === metodo).reduce((acc, v) => acc + v.total, 0)
       );
       this.chartData = {
         labels,
@@ -187,7 +183,8 @@ export default {
       };
     }
   },
-  mounted() {
+  async mounted() {
+    await this.fetchVentas();
     this.updateChart();
   },
   watch: {

@@ -109,13 +109,7 @@ export default {
       porPagina: 10,
       categoriasDummy: ['Bebida', 'Snack', 'Otro'],
       cantidadesDummy: [40, 70, 90, 120],
-      productos: [
-        { id: 1, nombre: 'Café Americano', categoria: 'Bebida', cantidad: 120, ingresos: 1800, precio: 15, costo: 9 },
-        { id: 2, nombre: 'Capuchino', categoria: 'Bebida', cantidad: 90, ingresos: 1350, precio: 15, costo: 9 },
-        { id: 3, nombre: 'Latte', categoria: 'Bebida', cantidad: 70, ingresos: 1050, precio: 15, costo: 9 },
-        { id: 4, nombre: 'Té Verde', categoria: 'Otro', cantidad: 40, ingresos: 400, precio: 10, costo: 6 },
-        // ...más datos de ejemplo
-      ],
+      productos: [],
       chartData: null,
       chartOptions: {
         responsive: true,
@@ -125,22 +119,21 @@ export default {
   },
   computed: {
     productosFiltrados() {
-      let filtrados = this.productos.filter(p => {
-        const fechaOk = true; // No hay fecha en el mock, pero aquí iría la lógica real
-        const catOk = !this.filtroCategoria || p.categoria === this.filtroCategoria;
-        const cantOk = !this.filtroCantidad || p.cantidad == this.filtroCantidad;
-        return fechaOk && catOk && cantOk;
-      });
       const start = (this.pagina - 1) * this.porPagina;
-      return filtrados.slice(start, start + this.porPagina);
+      return this.productos.slice(start, start + this.porPagina);
     },
     totalGeneral() {
       return this.productosFiltrados.reduce((acc, p) => acc + p.ingresos, 0);
     }
   },
   methods: {
-    buscar() {
+    async fetchProductos() {
+      const res = await fetch('http://localhost:3030/api/reportes/productos');
+      this.productos = await res.json();
+    },
+    async buscar() {
       this.pagina = 1;
+      await this.fetchProductos();
     },
     exportarPDF() {
       import('html2pdf.js').then(html2pdf => {
@@ -164,9 +157,12 @@ export default {
       this.pagina = 1;
     },
     updateChart() {
-      // Gráfica de ingresos por producto
-      const labels = this.productosFiltrados.map(p => p.nombre);
-      const data = this.productosFiltrados.map(p => p.ingresos);
+      if (!this.productos.length) {
+        this.chartData = null;
+        return;
+      }
+      const labels = this.productos.map(p => p.nombre);
+      const data = this.productos.map(p => p.ingresos);
       this.chartData = {
         labels,
         datasets: [
@@ -179,7 +175,8 @@ export default {
       };
     }
   },
-  mounted() {
+  async mounted() {
+    await this.fetchProductos();
     this.updateChart();
   },
   watch: {
