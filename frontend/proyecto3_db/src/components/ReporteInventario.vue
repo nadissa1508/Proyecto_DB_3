@@ -1,22 +1,69 @@
 <template>
   <div class="reporte">
     <h2>Inventario</h2>
+    <form class="filtros">
+      <label>Producto:
+        <select v-model="filtroProducto">
+          <option value="">Todos</option>
+          <option v-for="p in productosDummy" :key="p" :value="p">{{ p }}</option>
+        </select>
+      </label>
+      <label>Ingrediente:
+        <select v-model="filtroIngrediente">
+          <option value="">Todos</option>
+          <option v-for="i in ingredientesDummy" :key="i" :value="i">{{ i }}</option>
+        </select>
+      </label>
+      <label>Disponibilidad:
+        <select v-model="filtroDisponibilidad">
+          <option value="">Todas</option>
+          <option value="Disponible">Disponible</option>
+          <option value="No disponible">No disponible</option>
+        </select>
+      </label>
+      <label>Lote:
+        <select v-model="filtroLote">
+          <option value="">Todos</option>
+          <option v-for="l in lotesDummy" :key="l" :value="l">{{ l }}</option>
+        </select>
+      </label>
+      <button type="button" @click="buscar">Buscar</button>
+      <button type="button" @click="refrescar">Refrescar</button>
+      <button type="button" @click="exportar">Exportar</button>
+      <span class="ayuda" title="Filtre por producto, unidad, estado y proveedor. Exporte, refresque o consulte la leyenda de estados.">?</span>
+    </form>
     <table class="tabla">
       <thead>
         <tr>
           <th>Producto</th>
-          <th>Cantidad</th>
-          <th>Unidad</th>
+          <th>Ingrediente</th>
+          <th>Disponibilidad</th>
+          <th>Lote</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="item in inventario" :key="item.id">
+        <tr v-for="item in inventarioFiltrado" :key="item.id">
           <td>{{ item.producto }}</td>
-          <td>{{ item.cantidad }}</td>
-          <td>{{ item.unidad }}</td>
+          <td>{{ item.ingrediente }}</td>
+          <td>{{ item.disponibilidad }}</td>
+          <td>{{ item.lote }}</td>
         </tr>
       </tbody>
     </table>
+    <div class="totales">
+      <span><b>Total productos en página:</b> {{ inventarioFiltrado.length }}</span>
+      <span class="leyenda">
+        <b>Leyenda:</b>
+        <span class="leyenda-estado leyenda-optimo"></span> Óptimo
+        <span class="leyenda-estado leyenda-bajo"></span> Bajo
+        <span class="leyenda-estado leyenda-critico"></span> Crítico
+      </span>
+    </div>
+    <div class="paginacion">
+      <button :disabled="pagina === 1" @click="pagina--">Anterior</button>
+      <span>Página {{ pagina }}</span>
+      <button :disabled="inventarioFiltrado.length < porPagina" @click="pagina++">Siguiente</button>
+    </div>
   </div>
 </template>
 
@@ -25,17 +72,150 @@ export default {
   name: 'ReporteInventario',
   data() {
     return {
+      filtroProducto: '',
+      filtroIngrediente: '',
+      filtroDisponibilidad: '',
+      filtroLote: '',
+      pagina: 1,
+      porPagina: 10,
+      productosDummy: ['Café', 'Leche', 'Azúcar', 'Vasos'],
+      ingredientesDummy: ['Grano', 'Leche', 'Azúcar', 'Cartón'],
+      lotesDummy: ['Lote 1', 'Lote 2', 'Lote 3'],
       inventario: [
-        { id: 1, producto: 'Café', cantidad: 20, unidad: 'kg' },
-        { id: 2, producto: 'Leche', cantidad: 15, unidad: 'L' },
+        { id: 1, producto: 'Café', ingrediente: 'Grano', disponibilidad: 'Disponible', lote: 'Lote 1' },
+        { id: 2, producto: 'Leche', ingrediente: 'Leche', disponibilidad: 'No disponible', lote: 'Lote 2' },
+        { id: 3, producto: 'Azúcar', ingrediente: 'Azúcar', disponibilidad: 'Disponible', lote: 'Lote 3' },
+        { id: 4, producto: 'Vasos', ingrediente: 'Cartón', disponibilidad: 'Disponible', lote: 'Lote 1' },
+        // ...más datos de ejemplo
       ],
     };
+  },
+  computed: {
+    inventarioFiltrado() {
+      let filtrados = this.inventario.filter(i => {
+        const prodOk = !this.filtroProducto || i.producto === this.filtroProducto;
+        const ingOk = !this.filtroIngrediente || i.ingrediente === this.filtroIngrediente;
+        const dispOk = !this.filtroDisponibilidad || i.disponibilidad === this.filtroDisponibilidad;
+        const loteOk = !this.filtroLote || i.lote === this.filtroLote;
+        return prodOk && ingOk && dispOk && loteOk;
+      });
+      const start = (this.pagina - 1) * this.porPagina;
+      return filtrados.slice(start, start + this.porPagina);
+    }
+  },
+  methods: {
+    buscar() {
+      this.pagina = 1;
+    },
+    exportar() {
+      alert('Función de exportar no implementada (demo)');
+    },
+    refrescar() {
+      this.filtroProducto = '';
+      this.filtroIngrediente = '';
+      this.filtroDisponibilidad = '';
+      this.filtroLote = '';
+      this.pagina = 1;
+    }
   },
 };
 </script>
 
 <style scoped>
-.reporte { max-width: 700px; margin: 0 auto; }
-.tabla { width: 100%; border-collapse: collapse; }
-.tabla th, .tabla td { border: 1px solid #ccc; padding: 0.5rem; text-align: center; }
+.reporte {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  max-width: 900px;
+  width: 100%;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px #0001;
+  padding: 2rem 2rem 1.5rem 2rem;
+  margin: 2rem auto;
+}
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  justify-content: center;
+  align-items: center;
+}
+.filtros label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  font-weight: 500;
+}
+.ayuda {
+  background: #42b983;
+  color: #fff;
+  border-radius: 50%;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  margin-left: 0.5rem;
+  cursor: pointer;
+}
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+  background: #fafbfc;
+}
+.tabla th, .tabla td {
+  border: 1px solid #ccc;
+  padding: 0.7rem;
+  text-align: center;
+}
+.tabla th {
+  background: #f0f0f0;
+}
+.leyenda {
+  margin-left: 2rem;
+  font-size: 0.95rem;
+}
+.leyenda-estado {
+  display: inline-block;
+  width: 1.1em;
+  height: 1.1em;
+  border-radius: 50%;
+  margin-right: 0.3em;
+  vertical-align: middle;
+}
+.leyenda-optimo { background: #42b983; }
+.leyenda-bajo { background: #f7b731; }
+.leyenda-critico { background: #eb3b5a; }
+.estado-óptimo td { background: #eaffea; }
+.estado-bajo td { background: #fffbe6; }
+.estado-critico td { background: #ffeaea; }
+.totales {
+  text-align: right;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+.paginacion {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+}
+.paginacion button {
+  padding: 0.3rem 1.2rem;
+  border-radius: 6px;
+  border: 1px solid #aaa;
+  background: #f7f7f7;
+  cursor: pointer;
+  font-weight: 500;
+}
+.paginacion button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 </style>
