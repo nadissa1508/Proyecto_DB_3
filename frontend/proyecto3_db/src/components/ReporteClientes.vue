@@ -2,49 +2,51 @@
   <div class="reporte">
     <h2>Clientes Frecuentes</h2>
     <form class="filtros">
-      <label>Desde:
+      <label>Fecha inicio:
         <input type="date" v-model="fechaInicio" />
       </label>
-      <label>Hasta:
+      <label>Fecha fin:
         <input type="date" v-model="fechaFin" />
       </label>
-      <label>Cliente:
-        <select v-model="filtroCliente">
+      <label>Gasto promedio:
+        <select v-model="filtroGastoPromedio">
           <option value="">Todos</option>
-          <option v-for="c in clientesDummy" :key="c" :value="c">{{ c }}</option>
+          <option v-for="g in gastosPromedioDummy" :key="g" :value="g">{{ g }}</option>
         </select>
       </label>
-      <label>Puntos de Fidelización:
-        <select v-model="filtroPuntos">
+      <label>Pedidos realizados:
+        <select v-model="filtroPedidosRealizados">
           <option value="">Todos</option>
-          <option v-for="p in puntosDummy" :key="p" :value="p">{{ p }}</option>
+          <option v-for="p in pedidosRealizadosDummy" :key="p" :value="p">{{ p }}</option>
         </select>
       </label>
       <button type="button" @click="buscar">Buscar</button>
       <button type="button" @click="refrescar">Refrescar</button>
-      <button type="button" @click="exportar">Exportar</button>
-      <span class="ayuda" title="Filtre por fecha, cliente, frecuencia y estado. Exporte o refresque los datos.">?</span>
+      <button type="button" @click="exportarPDF">Exportar PDF</button>
+      <button type="button" @click="exportarExcel">Exportar Excel</button>
+      <span class="ayuda" title="Filtre por fecha, gasto promedio y pedidos realizados. Exporte o refresque los datos.">?</span>
     </form>
-    <table class="tabla">
+    <table class="tabla" id="tabla-clientes">
       <thead>
         <tr>
-          <th>Cliente</th>
-          <th>Pedidos</th>
-          <th>Total Gastado</th>
-          <th>Última Compra</th>
-          <th>Puntos</th>
+          <th>ID Cliente</th>
+          <th>Nombre Cliente</th>
+          <th>Fecha de Registro</th>
+          <th>Puntos Fidelización</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="cliente in clientesFiltrados" :key="cliente.id">
+          <td>{{ cliente.id }}</td>
           <td>{{ cliente.nombre }}</td>
-          <td>{{ cliente.pedidos }}</td>
-          <td>${{ cliente.total.toFixed(2) }}</td>
-          <td>{{ cliente.ultima }}</td>
+          <td>{{ cliente.fecha_registro || cliente.ultima }}</td>
           <td>{{ cliente.puntos }}</td>
         </tr>
       </tbody>
     </table>
+    <div class="grafica-container">
+      <BarChart :chart-data="chartData" :options="chartOptions" />
+    </div>
     <div class="totales">
       <span><b>Total gastado:</b> ${{ totalGeneral.toFixed(2) }}</span>
       <span class="leyenda">
@@ -64,58 +66,132 @@
   </div>
 </template>
 
+
 <script>
+import { Bar } from 'vue-chartjs';
+import {
+  Chart as ChartJS,
+  Title,
+  Tooltip,
+  Legend,
+  BarElement,
+  CategoryScale,
+  LinearScale
+} from 'chart.js';
+
+ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
+
+const BarChart = {
+  name: 'BarChart',
+  props: ['chartData', 'options'],
+  extends: Bar,
+  mounted() {
+    this.renderChart(this.chartData, this.options);
+  },
+  watch: {
+    chartData: {
+      handler(newData) {
+        this.renderChart(newData, this.options);
+      },
+      deep: true
+    }
+  }
+};
+
 export default {
   name: 'ReporteClientes',
+  components: { BarChart },
   data() {
     return {
       fechaInicio: '',
       fechaFin: '',
-      filtroCliente: '',
+      filtroGastoPromedio: '',
+      filtroPedidosRealizados: '',
       pagina: 1,
       porPagina: 10,
-      clientesDummy: ['Ana Pérez', 'Luis Gómez', 'Pedro Torres', 'María López'],
-      puntosDummy: [0, 10, 20, 30, 40, 50],
+      gastosPromedioDummy: [100, 200, 300, 400, 500],
+      pedidosRealizadosDummy: [1, 5, 10, 15, 20],
       clientes: [
-        { id: 1, nombre: 'Ana Pérez', pedidos: 12, total: 500, ultima: '2025-04-30', puntos: 50 },
-        { id: 2, nombre: 'Luis Gómez', pedidos: 9, total: 350, ultima: '2025-04-29', puntos: 30 },
-        { id: 3, nombre: 'Pedro Torres', pedidos: 7, total: 210, ultima: '2025-04-28', puntos: 10 },
-        { id: 4, nombre: 'María López', pedidos: 5, total: 150, ultima: '2025-04-27', puntos: 20 },
+        { id: 1, nombre: 'Ana Pérez', fecha_registro: '2024-01-10', puntos: 50, gasto_promedio: 500, pedidos_realizados: 12 },
+        { id: 2, nombre: 'Luis Gómez', fecha_registro: '2024-02-15', puntos: 30, gasto_promedio: 350, pedidos_realizados: 9 },
+        { id: 3, nombre: 'Pedro Torres', fecha_registro: '2024-03-20', puntos: 10, gasto_promedio: 210, pedidos_realizados: 7 },
+        { id: 4, nombre: 'María López', fecha_registro: '2024-04-05', puntos: 20, gasto_promedio: 150, pedidos_realizados: 5 },
         // ...más datos de ejemplo
       ],
-      filtroPuntos: '',
+      chartData: null,
+      chartOptions: {
+        responsive: true,
+        plugins: { legend: { display: false } }
+      }
     };
   },
   computed: {
     clientesFiltrados() {
       let filtrados = this.clientes.filter(c => {
-        const fechaOk = (!this.fechaInicio || c.ultima >= this.fechaInicio) && (!this.fechaFin || c.ultima <= this.fechaFin);
-        const clienteOk = !this.filtroCliente || c.nombre === this.filtroCliente;
-        const puntosOk = !this.filtroPuntos || c.puntos == this.filtroPuntos;
-        return fechaOk && clienteOk && puntosOk;
+        const fechaOk = (!this.fechaInicio || c.fecha_registro >= this.fechaInicio) && (!this.fechaFin || c.fecha_registro <= this.fechaFin);
+        const gastoOk = !this.filtroGastoPromedio || c.gasto_promedio == this.filtroGastoPromedio;
+        const pedidosOk = !this.filtroPedidosRealizados || c.pedidos_realizados == this.filtroPedidosRealizados;
+        return fechaOk && gastoOk && pedidosOk;
       });
       const start = (this.pagina - 1) * this.porPagina;
       return filtrados.slice(start, start + this.porPagina);
     },
     totalGeneral() {
-      return this.clientesFiltrados.reduce((acc, c) => acc + c.total, 0);
+      return this.clientesFiltrados.reduce((acc, c) => acc + c.gasto_promedio, 0);
     }
   },
   methods: {
     buscar() {
       this.pagina = 1;
     },
-    exportar() {
-      alert('Función de exportar no implementada (demo)');
+    exportarPDF() {
+      import('html2pdf.js').then(html2pdf => {
+        const element = document.getElementById('tabla-clientes');
+        html2pdf.default().from(element).save('reporte_clientes.pdf');
+      });
+    },
+    exportarExcel() {
+      import('xlsx').then(XLSX => {
+        const ws = XLSX.utils.table_to_sheet(document.getElementById('tabla-clientes'));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
+        XLSX.writeFile(wb, 'reporte_clientes.xlsx');
+      });
     },
     refrescar() {
       this.fechaInicio = '';
       this.fechaFin = '';
-      this.filtroCliente = '';
-      this.filtroPuntos = '';
+      this.filtroGastoPromedio = '';
+      this.filtroPedidosRealizados = '';
       this.pagina = 1;
+    },
+    updateChart() {
+      // Agrupa clientes por puntos de fidelización
+      const labels = this.clientesFiltrados.map(c => c.nombre);
+      const data = this.clientesFiltrados.map(c => c.puntos);
+      this.chartData = {
+        labels,
+        datasets: [
+          {
+            label: 'Puntos de fidelización',
+            backgroundColor: '#42b983',
+            data
+          }
+        ]
+      };
     }
   },
+  mounted() {
+    this.updateChart();
+  },
+  watch: {
+    clientesFiltrados: {
+      handler() {
+        this.updateChart();
+      },
+      deep: true
+    }
+  }
 };
 </script>
 
@@ -133,8 +209,7 @@ export default {
   box-shadow: 0 2px 12px #0001;
   padding: 2rem 2rem 1.5rem 2rem;
   margin: 2rem auto;
-  align-items: center;
-  justify-content: center;
+  /* Removed duplicate align-items and justify-content */
 }
 .filtros {
   display: flex;

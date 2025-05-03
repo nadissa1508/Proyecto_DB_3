@@ -8,7 +8,7 @@
       <router-link to="/reporte-pedidos">Pedidos</router-link>
       <router-link to="/reporte-productos">Productos Más Vendidos</router-link>
     </nav>
-    <div class="kpi-row">
+<!--     <div class="kpi-row">
       <div class="kpi-card">
         <div class="kpi-title">Ventas del mes</div>
         <div class="kpi-value">${{ ventasMes }}</div>
@@ -29,8 +29,8 @@
         <div class="kpi-title">Inventario bajo mínimo</div>
         <div class="kpi-value">{{ inventarioBajo }}</div>
       </div>
-    </div>
-    <div class="dashboard-graph">
+    </div> -->
+    <!-- <div class="dashboard-graph">
       <h3>Ventas por método de pago</h3>
       <div class="bar-graph">
         <div v-for="m in metodosPago" :key="m.nombre" class="bar-item">
@@ -38,13 +38,13 @@
           <div class="bar-bar" :style="{width: m.valor * 2 + 'px'}">${{ m.valor }}</div>
         </div>
       </div>
-    </div>
-    <button class="exportar-btn" @click="exportar">Exportar resumen</button>
+    </div> -->
+<!--     <button class="exportar-btn" @click="exportar">Exportar resumen</button> -->
     <router-view />
   </div>
 </template>
 
-<script>
+<!-- <script>
 export default {
   name: 'Dashboard',
   data() {
@@ -63,12 +63,12 @@ export default {
     };
   },
   methods: {
-    exportar() {
+/*     exportar() {
       alert('Función de exportar resumen no implementada (demo)');
-    },
+    }, */
   },
 };
-</script>
+</script> -->
 
 <style scoped>
 .dashboard {
@@ -98,7 +98,7 @@ export default {
 .dashboard-nav a.router-link-exact-active {
   border-bottom: 2px solid #42b983;
 }
-.kpi-row {
+/* .kpi-row {
   display: flex;
   gap: 1.5rem;
   margin-bottom: 2.5rem;
@@ -170,5 +170,5 @@ export default {
 .exportar-btn:hover {
   background: #42b983;
   color: #fff;
-}
+} */
 </style>

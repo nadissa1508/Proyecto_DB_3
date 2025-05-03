@@ -2,15 +2,19 @@
   <div class="reporte">
     <h2>Pedidos</h2>
     <form class="filtros">
-      <label>Desde: <input type="date" v-model="fechaInicio" /></label>
-      <label>Hasta: <input type="date" v-model="fechaFin" /></label>
+      <label>Fecha inicio:
+        <input type="date" v-model="fechaInicio" />
+      </label>
+      <label>Fecha fin:
+        <input type="date" v-model="fechaFin" />
+      </label>
       <label>Estado:
         <select v-model="filtroEstado">
           <option value="">Todos</option>
           <option v-for="e in estadosDummy" :key="e" :value="e">{{ e }}</option>
         </select>
       </label>
-      <label>Tipo de Pedido:
+      <label>Tipo de pedido:
         <select v-model="filtroTipoPedido">
           <option value="">Todos</option>
           <option v-for="t in tiposPedidoDummy" :key="t" :value="t">{{ t }}</option>
@@ -18,34 +22,33 @@
       </label>
       <button type="button" @click="buscar">Buscar</button>
       <button type="button" @click="refrescar">Refrescar</button>
-      <button type="button" @click="exportar">Exportar</button>
-      <span class="ayuda" title="Filtre por fecha, estado, cliente, método de pago y cajero. Exporte, refresque o consulte la leyenda de estados.">?</span>
+      <button type="button" @click="exportarPDF">Exportar PDF</button>
+      <button type="button" @click="exportarExcel">Exportar Excel</button>
+      <span class="ayuda" title="Filtre por fecha, estado, tipo de pedido. Exporte o refresque los datos.">?</span>
     </form>
-    <table class="tabla">
+    <table class="tabla" id="tabla-pedidos">
       <thead>
         <tr>
           <th>ID Pedido</th>
-          <th>Fecha</th>
-          <th>Tipo de Pedido</th>
-          <th>Estado</th>
+          <th>Cliente</th>
+          <th>Localización</th>
+          <th>Fecha Hora</th>
           <th>Total</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="pedido in pedidosFiltrados" :key="pedido.id" :class="'estado-' + pedido.estado.toLowerCase().replace(/ /g, '-')">
+        <tr v-for="pedido in pedidosFiltrados" :key="pedido.id">
           <td>{{ pedido.id }}</td>
-          <td>{{ pedido.fecha }}</td>
-          <td>{{ pedido.tipo_pedido }}</td>
-          <td>
-            <span :title="pedido.estado">
-              <span :class="'leyenda-estado leyenda-' + pedido.estado.toLowerCase().replace(/ /g, '-')"></span>
-              {{ pedido.estado }}
-            </span>
-          </td>
+          <td>{{ pedido.cliente || 'Cliente ' + pedido.id }}</td>
+          <td>{{ pedido.localizacion || 'Sucursal Centro' }}</td>
+          <td>{{ pedido.fecha_hora || (pedido.fecha + ' 12:00') }}</td>
           <td>${{ pedido.total.toFixed(2) }}</td>
         </tr>
       </tbody>
     </table>
+    <div class="grafica-container">
+      <BarChart :chart-data="chartData" :options="chartOptions" />
+    </div>
     <div class="totales">
       <span><b>Total pedidos en página:</b> {{ pedidosFiltrados.length }}</span>
       <span class="leyenda">
@@ -64,9 +67,41 @@
   </div>
 </template>
 
+
 <script>
+import { Bar } from 'vue-chartjs';
+import {
+  Chart as ChartJS,
+  Title,
+  Tooltip,
+  Legend,
+  BarElement,
+  CategoryScale,
+  LinearScale
+} from 'chart.js';
+
+ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
+
+const BarChart = {
+  name: 'BarChart',
+  props: ['chartData', 'options'],
+  extends: Bar,
+  mounted() {
+    this.renderChart(this.chartData, this.options);
+  },
+  watch: {
+    chartData: {
+      handler(newData) {
+        this.renderChart(newData, this.options);
+      },
+      deep: true
+    }
+  }
+};
+
 export default {
   name: 'ReportePedidos',
+  components: { BarChart },
   data() {
     return {
       fechaInicio: '',
@@ -78,18 +113,23 @@ export default {
       estadosDummy: ['Pendiente', 'En preparación', 'Completado', 'Cancelado'],
       tiposPedidoDummy: ['Local', 'Para llevar', 'Delivery'],
       pedidos: [
-        { id: 101, fecha: '2025-05-01', tipo_pedido: 'Local', estado: 'Completado', total: 50 },
-        { id: 102, fecha: '2025-05-02', tipo_pedido: 'Para llevar', estado: 'Pendiente', total: 80 },
-        { id: 103, fecha: '2025-05-02', tipo_pedido: 'Delivery', estado: 'En preparación', total: 60 },
-        { id: 104, fecha: '2025-05-03', tipo_pedido: 'Local', estado: 'Cancelado', total: 40 },
+        { id: 101, cliente: 'Ana Pérez', localizacion: 'Sucursal Centro', fecha_hora: '2025-05-01 10:00', total: 50, tipo_pedido: 'Local', estado: 'Completado' },
+        { id: 102, cliente: 'Luis Gómez', localizacion: 'Sucursal Norte', fecha_hora: '2025-05-02 11:00', total: 80, tipo_pedido: 'Para llevar', estado: 'Pendiente' },
+        { id: 103, cliente: 'Pedro Torres', localizacion: 'Sucursal Centro', fecha_hora: '2025-05-02 12:00', total: 60, tipo_pedido: 'Delivery', estado: 'En preparación' },
+        { id: 104, cliente: 'María López', localizacion: 'Sucursal Sur', fecha_hora: '2025-05-03 13:00', total: 40, tipo_pedido: 'Local', estado: 'Cancelado' },
         // ...más datos de ejemplo
       ],
+      chartData: null,
+      chartOptions: {
+        responsive: true,
+        plugins: { legend: { display: false } }
+      }
     };
   },
   computed: {
     pedidosFiltrados() {
       let filtrados = this.pedidos.filter(p => {
-        const fechaOk = (!this.fechaInicio || p.fecha >= this.fechaInicio) && (!this.fechaFin || p.fecha <= this.fechaFin);
+        const fechaOk = (!this.fechaInicio || p.fecha_hora >= this.fechaInicio) && (!this.fechaFin || p.fecha_hora <= this.fechaFin);
         const estadoOk = !this.filtroEstado || p.estado === this.filtroEstado;
         const tipoOk = !this.filtroTipoPedido || p.tipo_pedido === this.filtroTipoPedido;
         return fechaOk && estadoOk && tipoOk;
@@ -102,8 +142,19 @@ export default {
     buscar() {
       this.pagina = 1;
     },
-    exportar() {
-      alert('Función de exportar no implementada (demo)');
+    exportarPDF() {
+      import('html2pdf.js').then(html2pdf => {
+        const element = document.getElementById('tabla-pedidos');
+        html2pdf.default().from(element).save('reporte_pedidos.pdf');
+      });
+    },
+    exportarExcel() {
+      import('xlsx').then(XLSX => {
+        const ws = XLSX.utils.table_to_sheet(document.getElementById('tabla-pedidos'));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Pedidos');
+        XLSX.writeFile(wb, 'reporte_pedidos.xlsx');
+      });
     },
     refrescar() {
       this.fechaInicio = '';
@@ -111,8 +162,36 @@ export default {
       this.filtroEstado = '';
       this.filtroTipoPedido = '';
       this.pagina = 1;
+    },
+    updateChart() {
+      // Gráfica de total de pedidos por estado
+      const labels = this.estadosDummy;
+      const data = labels.map(estado =>
+        this.pedidosFiltrados.filter(p => p.estado === estado).length
+      );
+      this.chartData = {
+        labels,
+        datasets: [
+          {
+            label: 'Cantidad de pedidos',
+            backgroundColor: ['#f7b731', '#7ed6df', '#42b983', '#eb3b5a'],
+            data
+          }
+        ]
+      };
     }
   },
+  mounted() {
+    this.updateChart();
+  },
+  watch: {
+    pedidosFiltrados: {
+      handler() {
+        this.updateChart();
+      },
+      deep: true
+    }
+  }
 };
 </script>
 

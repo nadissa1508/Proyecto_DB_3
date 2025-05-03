@@ -2,19 +2,19 @@
   <div class="reporte">
     <h2>Reporte de Ventas</h2>
     <form class="filtros">
-      <label>Desde:
+      <label>Fecha inicio:
         <input type="date" v-model="fechaInicio" />
       </label>
-      <label>Hasta:
+      <label>Fecha fin:
         <input type="date" v-model="fechaFin" />
       </label>
-      <label>Tipo de Pedido:
+      <label>Tipo de pedido:
         <select v-model="filtroTipoPedido">
           <option value="">Todos</option>
           <option v-for="t in tiposPedido" :key="t" :value="t">{{ t }}</option>
         </select>
       </label>
-      <label>Método de Pago:
+      <label>Método de pago:
         <select v-model="filtroMetodoPago">
           <option value="">Todos</option>
           <option v-for="m in metodosPago" :key="m" :value="m">{{ m }}</option>
@@ -22,27 +22,35 @@
       </label>
       <button type="button" @click="buscar">Buscar</button>
       <button type="button" @click="refrescar">Refrescar</button>
-      <button type="button" @click="exportar">Exportar</button>
-      <span class="ayuda" title="Filtre por fecha, método, cajero y estado. Exporte o refresque los datos.">?</span>
+      <button type="button" @click="exportarPDF">Exportar PDF</button>
+      <button type="button" @click="exportarExcel">Exportar Excel</button>
+      <span class="ayuda" title="Filtre por fecha, tipo de pedido y método de pago. Exporte o refresque los datos.">?</span>
     </form>
-    <table class="tabla">
+    <table class="tabla" id="tabla-ventas">
       <thead>
         <tr>
+          <th>ID Pedido</th>
+          <th>Cliente</th>
+          <th>Vendedor</th>
           <th>Fecha</th>
-          <th>Total Ventas</th>
-          <th>Tipo de Pedido</th>
+          <th>Total</th>
           <th>Método de Pago</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="venta in ventasFiltradas" :key="venta.id">
+          <td>{{ venta.id }}</td>
+          <td>{{ venta.cliente }}</td>
+          <td>{{ venta.vendedor }}</td>
           <td>{{ venta.fecha }}</td>
           <td>${{ venta.total.toFixed(2) }}</td>
-          <td>{{ venta.tipo_pedido }}</td>
           <td>{{ venta.metodo_pago }}</td>
         </tr>
       </tbody>
     </table>
+    <div class="grafica-container">
+      <BarChart :chart-data="chartData" :options="chartOptions" />
+    </div>
     <div class="totales">
       <span><b>Total general:</b> ${{ totalGeneral.toFixed(2) }}</span>
       <span class="leyenda">
@@ -60,9 +68,41 @@
   </div>
 </template>
 
+
 <script>
+import { Bar } from 'vue-chartjs';
+import {
+  Chart as ChartJS,
+  Title,
+  Tooltip,
+  Legend,
+  BarElement,
+  CategoryScale,
+  LinearScale
+} from 'chart.js';
+
+ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
+
+const BarChart = {
+  name: 'BarChart',
+  props: ['chartData', 'options'],
+  extends: Bar,
+  mounted() {
+    this.renderChart(this.chartData, this.options);
+  },
+  watch: {
+    chartData: {
+      handler(newData) {
+        this.renderChart(newData, this.options);
+      },
+      deep: true
+    }
+  }
+};
+
 export default {
   name: 'ReporteVentas',
+  components: { BarChart },
   data() {
     return {
       fechaInicio: '',
@@ -72,15 +112,20 @@ export default {
       pagina: 1,
       porPagina: 10,
       tiposPedido: ['Local', 'Para llevar', 'Delivery'],
-      metodosPago: ['Efectivo', 'Tarjeta', 'Transferencia', 'QR'],
+      metodosPago: ['Efectivo', 'Tarjeta', 'Transferencia'],
       ventas: [
-        { id: 1, fecha: '2025-05-01', total: 150, tipo_pedido: 'Local', metodo_pago: 'Efectivo' },
-        { id: 2, fecha: '2025-05-02', total: 200, tipo_pedido: 'Para llevar', metodo_pago: 'Tarjeta' },
-        { id: 3, fecha: '2025-05-02', total: 120, tipo_pedido: 'Delivery', metodo_pago: 'QR' },
-        { id: 4, fecha: '2025-05-03', total: 180, tipo_pedido: 'Local', metodo_pago: 'Efectivo' },
-        { id: 5, fecha: '2025-05-03', total: 90, tipo_pedido: 'Para llevar', metodo_pago: 'Tarjeta' },
+        { id: 1, cliente: 'Ana Pérez', vendedor: 'Carlos Ruiz', fecha: '2025-05-01', total: 150, tipo_pedido: 'Local', metodo_pago: 'Efectivo' },
+        { id: 2, cliente: 'Luis Gómez', vendedor: 'Sofía Méndez', fecha: '2025-05-02', total: 200, tipo_pedido: 'Para llevar', metodo_pago: 'Tarjeta' },
+        { id: 3, cliente: 'Pedro Torres', vendedor: 'Carlos Ruiz', fecha: '2025-05-02', total: 120, tipo_pedido: 'Delivery', metodo_pago: 'Transferencia' },
+        { id: 4, cliente: 'María López', vendedor: 'Sofía Méndez', fecha: '2025-05-03', total: 180, tipo_pedido: 'Local', metodo_pago: 'Efectivo' },
+        { id: 5, cliente: 'Ana Pérez', vendedor: 'Carlos Ruiz', fecha: '2025-05-03', total: 90, tipo_pedido: 'Para llevar', metodo_pago: 'Tarjeta' },
         // ...más datos de ejemplo
       ],
+      chartData: null,
+      chartOptions: {
+        responsive: true,
+        plugins: { legend: { display: false } }
+      }
     };
   },
   computed: {
@@ -103,37 +148,66 @@ export default {
     buscar() {
       this.pagina = 1;
     },
-    exportar() {
-      alert('Función de exportar no implementada (demo)');
-    },
     refrescar() {
       this.fechaInicio = '';
       this.fechaFin = '';
+      this.filtroTipoPedido = '';
       this.filtroMetodoPago = '';
-      this.filtroCajero = '';
-      this.filtroEstado = '';
       this.pagina = 1;
+    },
+    exportarPDF() {
+      import('html2pdf.js').then(html2pdf => {
+        const element = document.getElementById('tabla-ventas');
+        html2pdf.default().from(element).save('reporte_ventas.pdf');
+      });
+    },
+    exportarExcel() {
+      import('xlsx').then(XLSX => {
+        const ws = XLSX.utils.table_to_sheet(document.getElementById('tabla-ventas'));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
+        XLSX.writeFile(wb, 'reporte_ventas.xlsx');
+      });
+    },
+    updateChart() {
+      // Agrupa ventas por método de pago
+      const labels = this.metodosPago;
+      const data = labels.map(metodo =>
+        this.ventasFiltradas.filter(v => v.metodo_pago === metodo).reduce((acc, v) => acc + v.total, 0)
+      );
+      this.chartData = {
+        labels,
+        datasets: [
+          {
+            label: 'Ventas por método de pago',
+            backgroundColor: ['#42b983', '#f7b731', '#eb3b5a'],
+            data
+          }
+        ]
+      };
     }
   },
+  mounted() {
+    this.updateChart();
+  },
+  watch: {
+    ventasFiltradas: {
+      handler() {
+        this.updateChart();
+      },
+      deep: true
+    }
+  }
 };
 </script>
 
 <style scoped>
-body, .reporte {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-body, .reporte {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
 .reporte {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   max-width: 900px;
   width: 100%;
   background: #fff;
@@ -141,8 +215,6 @@ body, .reporte {
   box-shadow: 0 2px 12px #0001;
   padding: 2rem 2rem 1.5rem 2rem;
   margin: 2rem auto;
-  align-items: center;
-  justify-content: center;
 }
 .filtros {
   display: flex;

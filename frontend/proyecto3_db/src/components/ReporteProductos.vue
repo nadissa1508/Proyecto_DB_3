@@ -2,13 +2,11 @@
   <div class="reporte">
     <h2>Productos Más Vendidos</h2>
     <form class="filtros">
-      <label>Desde: <input type="date" v-model="fechaInicio" /></label>
-      <label>Hasta: <input type="date" v-model="fechaFin" /></label>
-      <label>Categoría:
-        <select v-model="filtroCategoria">
-          <option value="">Todas</option>
-          <option v-for="cat in categoriasDummy" :key="cat" :value="cat">{{ cat }}</option>
-        </select>
+      <label>Fecha inicio:
+        <input type="date" v-model="fechaInicio" />
+      </label>
+      <label>Fecha fin:
+        <input type="date" v-model="fechaFin" />
       </label>
       <label>Cantidad de veces pedido:
         <select v-model="filtroCantidad">
@@ -16,34 +14,39 @@
           <option v-for="c in cantidadesDummy" :key="c" :value="c">{{ c }}</option>
         </select>
       </label>
+      <label>Categoría:
+        <select v-model="filtroCategoria">
+          <option value="">Todas</option>
+          <option v-for="cat in categoriasDummy" :key="cat" :value="cat">{{ cat }}</option>
+        </select>
+      </label>
       <button type="button" @click="buscar">Buscar</button>
       <button type="button" @click="refrescar">Refrescar</button>
-      <button type="button" @click="exportar">Exportar</button>
-      <span class="ayuda" title="Filtre por fecha, producto, categoría y proveedor. Exporte, refresque o consulte la leyenda de categorías.">?</span>
+      <button type="button" @click="exportarPDF">Exportar PDF</button>
+      <button type="button" @click="exportarExcel">Exportar Excel</button>
+      <span class="ayuda" title="Filtre por fecha, cantidad, categoría. Exporte o refresque los datos.">?</span>
     </form>
-    <table class="tabla">
+    <table class="tabla" id="tabla-productos">
       <thead>
         <tr>
-          <th>Producto</th>
-          <th>Categoría</th>
-          <th>Cantidad Vendida</th>
-          <th>Ingresos</th>
+          <th>ID Producto</th>
+          <th>Nombre</th>
+          <th>Precio</th>
+          <th>Costo</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="producto in productosFiltrados" :key="producto.id">
+          <td>{{ producto.id }}</td>
           <td>{{ producto.nombre }}</td>
-          <td>
-            <span :title="producto.categoria">
-              <span :class="'leyenda-categoria leyenda-' + producto.categoria.toLowerCase().replace(/ /g, '-')"></span>
-              {{ producto.categoria }}
-            </span>
-          </td>
-          <td>{{ producto.cantidad }}</td>
-          <td>${{ producto.ingresos.toFixed(2) }}</td>
+          <td>${{ producto.precio || (producto.ingresos / (producto.cantidad || 1)).toFixed(2) }}</td>
+          <td>${{ producto.costo || (producto.precio ? (producto.precio * 0.6).toFixed(2) : ((producto.ingresos / (producto.cantidad || 1)) * 0.6).toFixed(2)) }}</td>
         </tr>
       </tbody>
     </table>
+    <div class="grafica-container">
+      <BarChart :chart-data="chartData" :options="chartOptions" />
+    </div>
     <div class="totales">
       <span><b>Total ingresos en página:</b> ${{ totalGeneral.toFixed(2) }}</span>
       <span class="leyenda">
@@ -61,9 +64,41 @@
   </div>
 </template>
 
+
 <script>
+import { Bar } from 'vue-chartjs';
+import {
+  Chart as ChartJS,
+  Title,
+  Tooltip,
+  Legend,
+  BarElement,
+  CategoryScale,
+  LinearScale
+} from 'chart.js';
+
+ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
+
+const BarChart = {
+  name: 'BarChart',
+  props: ['chartData', 'options'],
+  extends: Bar,
+  mounted() {
+    this.renderChart(this.chartData, this.options);
+  },
+  watch: {
+    chartData: {
+      handler(newData) {
+        this.renderChart(newData, this.options);
+      },
+      deep: true
+    }
+  }
+};
+
 export default {
   name: 'ReporteProductos',
+  components: { BarChart },
   data() {
     return {
       fechaInicio: '',
@@ -75,12 +110,17 @@ export default {
       categoriasDummy: ['Bebida', 'Snack', 'Otro'],
       cantidadesDummy: [40, 70, 90, 120],
       productos: [
-        { id: 1, nombre: 'Café Americano', categoria: 'Bebida', cantidad: 120, ingresos: 1800 },
-        { id: 2, nombre: 'Capuchino', categoria: 'Bebida', cantidad: 90, ingresos: 1350 },
-        { id: 3, nombre: 'Latte', categoria: 'Bebida', cantidad: 70, ingresos: 1050 },
-        { id: 4, nombre: 'Té Verde', categoria: 'Otro', cantidad: 40, ingresos: 400 },
+        { id: 1, nombre: 'Café Americano', categoria: 'Bebida', cantidad: 120, ingresos: 1800, precio: 15, costo: 9 },
+        { id: 2, nombre: 'Capuchino', categoria: 'Bebida', cantidad: 90, ingresos: 1350, precio: 15, costo: 9 },
+        { id: 3, nombre: 'Latte', categoria: 'Bebida', cantidad: 70, ingresos: 1050, precio: 15, costo: 9 },
+        { id: 4, nombre: 'Té Verde', categoria: 'Otro', cantidad: 40, ingresos: 400, precio: 10, costo: 6 },
         // ...más datos de ejemplo
       ],
+      chartData: null,
+      chartOptions: {
+        responsive: true,
+        plugins: { legend: { display: false } }
+      }
     };
   },
   computed: {
@@ -102,8 +142,19 @@ export default {
     buscar() {
       this.pagina = 1;
     },
-    exportar() {
-      alert('Función de exportar no implementada (demo)');
+    exportarPDF() {
+      import('html2pdf.js').then(html2pdf => {
+        const element = document.getElementById('tabla-productos');
+        html2pdf.default().from(element).save('reporte_productos.pdf');
+      });
+    },
+    exportarExcel() {
+      import('xlsx').then(XLSX => {
+        const ws = XLSX.utils.table_to_sheet(document.getElementById('tabla-productos'));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Productos');
+        XLSX.writeFile(wb, 'reporte_productos.xlsx');
+      });
     },
     refrescar() {
       this.fechaInicio = '';
@@ -111,8 +162,34 @@ export default {
       this.filtroCategoria = '';
       this.filtroCantidad = '';
       this.pagina = 1;
+    },
+    updateChart() {
+      // Gráfica de ingresos por producto
+      const labels = this.productosFiltrados.map(p => p.nombre);
+      const data = this.productosFiltrados.map(p => p.ingresos);
+      this.chartData = {
+        labels,
+        datasets: [
+          {
+            label: 'Ingresos por producto',
+            backgroundColor: '#42b983',
+            data
+          }
+        ]
+      };
     }
   },
+  mounted() {
+    this.updateChart();
+  },
+  watch: {
+    productosFiltrados: {
+      handler() {
+        this.updateChart();
+      },
+      deep: true
+    }
+  }
 };
 </script>
 

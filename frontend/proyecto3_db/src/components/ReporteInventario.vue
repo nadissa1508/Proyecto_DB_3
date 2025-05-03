@@ -2,16 +2,16 @@
   <div class="reporte">
     <h2>Inventario</h2>
     <form class="filtros">
-      <label>Producto:
-        <select v-model="filtroProducto">
-          <option value="">Todos</option>
-          <option v-for="p in productosDummy" :key="p" :value="p">{{ p }}</option>
-        </select>
-      </label>
-      <label>Ingrediente:
+      <label>Nombre del ingrediente:
         <select v-model="filtroIngrediente">
           <option value="">Todos</option>
           <option v-for="i in ingredientesDummy" :key="i" :value="i">{{ i }}</option>
+        </select>
+      </label>
+      <label>Lote:
+        <select v-model="filtroLote">
+          <option value="">Todos</option>
+          <option v-for="l in lotesDummy" :key="l" :value="l">{{ l }}</option>
         </select>
       </label>
       <label>Disponibilidad:
@@ -21,35 +21,39 @@
           <option value="No disponible">No disponible</option>
         </select>
       </label>
-      <label>Lote:
-        <select v-model="filtroLote">
+      <label>Nombre producto:
+        <select v-model="filtroProducto">
           <option value="">Todos</option>
-          <option v-for="l in lotesDummy" :key="l" :value="l">{{ l }}</option>
+          <option v-for="p in productosDummy" :key="p" :value="p">{{ p }}</option>
         </select>
       </label>
       <button type="button" @click="buscar">Buscar</button>
       <button type="button" @click="refrescar">Refrescar</button>
-      <button type="button" @click="exportar">Exportar</button>
-      <span class="ayuda" title="Filtre por producto, unidad, estado y proveedor. Exporte, refresque o consulte la leyenda de estados.">?</span>
+      <button type="button" @click="exportarPDF">Exportar PDF</button>
+      <button type="button" @click="exportarExcel">Exportar Excel</button>
+      <span class="ayuda" title="Filtre por ingrediente, lote, disponibilidad y producto. Exporte o refresque los datos.">?</span>
     </form>
-    <table class="tabla">
+    <table class="tabla" id="tabla-inventario">
       <thead>
         <tr>
-          <th>Producto</th>
-          <th>Ingrediente</th>
-          <th>Disponibilidad</th>
+          <th>ID Ingrediente</th>
+          <th>Nombre de Ingrediente</th>
+          <th>Cantidad Disponible</th>
           <th>Lote</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="item in inventarioFiltrado" :key="item.id">
-          <td>{{ item.producto }}</td>
+          <td>{{ item.id }}</td>
           <td>{{ item.ingrediente }}</td>
-          <td>{{ item.disponibilidad }}</td>
+          <td>{{ item.cantidad || 100 }}</td>
           <td>{{ item.lote }}</td>
         </tr>
       </tbody>
     </table>
+    <div class="grafica-container">
+      <BarChart :chart-data="chartData" :options="chartOptions" />
+    </div>
     <div class="totales">
       <span><b>Total productos en página:</b> {{ inventarioFiltrado.length }}</span>
       <span class="leyenda">
@@ -67,37 +71,74 @@
   </div>
 </template>
 
+
 <script>
+import { Bar } from 'vue-chartjs';
+import {
+  Chart as ChartJS,
+  Title,
+  Tooltip,
+  Legend,
+  BarElement,
+  CategoryScale,
+  LinearScale
+} from 'chart.js';
+
+ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
+
+const BarChart = {
+  name: 'BarChart',
+  props: ['chartData', 'options'],
+  extends: Bar,
+  mounted() {
+    this.renderChart(this.chartData, this.options);
+  },
+  watch: {
+    chartData: {
+      handler(newData) {
+        this.renderChart(newData, this.options);
+      },
+      deep: true
+    }
+  }
+};
+
 export default {
   name: 'ReporteInventario',
+  components: { BarChart },
   data() {
     return {
-      filtroProducto: '',
       filtroIngrediente: '',
-      filtroDisponibilidad: '',
       filtroLote: '',
+      filtroDisponibilidad: '',
+      filtroProducto: '',
       pagina: 1,
       porPagina: 10,
       productosDummy: ['Café', 'Leche', 'Azúcar', 'Vasos'],
       ingredientesDummy: ['Grano', 'Leche', 'Azúcar', 'Cartón'],
       lotesDummy: ['Lote 1', 'Lote 2', 'Lote 3'],
       inventario: [
-        { id: 1, producto: 'Café', ingrediente: 'Grano', disponibilidad: 'Disponible', lote: 'Lote 1' },
-        { id: 2, producto: 'Leche', ingrediente: 'Leche', disponibilidad: 'No disponible', lote: 'Lote 2' },
-        { id: 3, producto: 'Azúcar', ingrediente: 'Azúcar', disponibilidad: 'Disponible', lote: 'Lote 3' },
-        { id: 4, producto: 'Vasos', ingrediente: 'Cartón', disponibilidad: 'Disponible', lote: 'Lote 1' },
+        { id: 1, producto: 'Café', ingrediente: 'Grano', disponibilidad: 'Disponible', lote: 'Lote 1', cantidad: 120 },
+        { id: 2, producto: 'Leche', ingrediente: 'Leche', disponibilidad: 'No disponible', lote: 'Lote 2', cantidad: 80 },
+        { id: 3, producto: 'Azúcar', ingrediente: 'Azúcar', disponibilidad: 'Disponible', lote: 'Lote 3', cantidad: 60 },
+        { id: 4, producto: 'Vasos', ingrediente: 'Cartón', disponibilidad: 'Disponible', lote: 'Lote 1', cantidad: 200 },
         // ...más datos de ejemplo
       ],
+      chartData: null,
+      chartOptions: {
+        responsive: true,
+        plugins: { legend: { display: false } }
+      }
     };
   },
   computed: {
     inventarioFiltrado() {
       let filtrados = this.inventario.filter(i => {
-        const prodOk = !this.filtroProducto || i.producto === this.filtroProducto;
         const ingOk = !this.filtroIngrediente || i.ingrediente === this.filtroIngrediente;
-        const dispOk = !this.filtroDisponibilidad || i.disponibilidad === this.filtroDisponibilidad;
         const loteOk = !this.filtroLote || i.lote === this.filtroLote;
-        return prodOk && ingOk && dispOk && loteOk;
+        const dispOk = !this.filtroDisponibilidad || i.disponibilidad === this.filtroDisponibilidad;
+        const prodOk = !this.filtroProducto || i.producto === this.filtroProducto;
+        return ingOk && loteOk && dispOk && prodOk;
       });
       const start = (this.pagina - 1) * this.porPagina;
       return filtrados.slice(start, start + this.porPagina);
@@ -107,8 +148,19 @@ export default {
     buscar() {
       this.pagina = 1;
     },
-    exportar() {
-      alert('Función de exportar no implementada (demo)');
+    exportarPDF() {
+      import('html2pdf.js').then(html2pdf => {
+        const element = document.getElementById('tabla-inventario');
+        html2pdf.default().from(element).save('reporte_inventario.pdf');
+      });
+    },
+    exportarExcel() {
+      import('xlsx').then(XLSX => {
+        const ws = XLSX.utils.table_to_sheet(document.getElementById('tabla-inventario'));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
+        XLSX.writeFile(wb, 'reporte_inventario.xlsx');
+      });
     },
     refrescar() {
       this.filtroProducto = '';
@@ -116,8 +168,34 @@ export default {
       this.filtroDisponibilidad = '';
       this.filtroLote = '';
       this.pagina = 1;
+    },
+    updateChart() {
+      // Gráfica de cantidad disponible por ingrediente
+      const labels = this.inventarioFiltrado.map(i => i.ingrediente);
+      const data = this.inventarioFiltrado.map(i => i.cantidad);
+      this.chartData = {
+        labels,
+        datasets: [
+          {
+            label: 'Cantidad disponible',
+            backgroundColor: '#42b983',
+            data
+          }
+        ]
+      };
     }
   },
+  mounted() {
+    this.updateChart();
+  },
+  watch: {
+    inventarioFiltrado: {
+      handler() {
+        this.updateChart();
+      },
+      deep: true
+    }
+  }
 };
 </script>
 
