@@ -137,8 +137,8 @@ app.get('/reporte/pedidos', async (req, res) => {
       JOIN clientes c ON p.id_cliente = c.id_cliente
       LEFT JOIN localizaciones l ON p.id_localizacion = l.id
       WHERE p.fecha_hora BETWEEN $1 AND $2
-        AND ($3::estado_pedido_enum IS NULL OR p.estado = $3)
-        AND ($4::tipo_pedido_enum IS NULL OR p.tipo_pedido = $4)
+        AND ($3 IS NULL OR p.estado = $3)
+        AND ($4 IS NULL OR p.tipo_pedido = $4)
       ORDER BY p.fecha_hora DESC
       `,
       [

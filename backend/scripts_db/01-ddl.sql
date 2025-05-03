@@ -1,16 +1,10 @@
--- ENUMs
-CREATE TYPE rol_enum AS ENUM ('administrador', 'cajero', 'barista');
-CREATE TYPE estado_pedido_enum AS ENUM ('pendiente', 'en preparacion', 'completado', 'cancelado');
-CREATE TYPE tipo_pedido_enum AS ENUM ('local', 'para llevar', 'delivery');
-CREATE TYPE tipo_localizacion_enum AS ENUM ('barra', 'mesa', 'parado');
-
 -- Tabla de Empleados
 CREATE TABLE empleados (
   id_empleado serial PRIMARY KEY,
   nombre varchar(100) NOT NULL,
   apellido varchar(100) NOT NULL,
   email varchar(100) UNIQUE NOT NULL,
-  rol rol_enum NOT NULL,
+  rol varchar(20) NOT NULL CHECK (rol IN ('administrador', 'cajero', 'barista')),
   fecha_creacion timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   activo boolean NOT NULL DEFAULT true
 );
@@ -53,7 +47,7 @@ CREATE TABLE productos (
 -- Tabla Localizaciones
 CREATE TABLE localizaciones (
   id serial PRIMARY KEY,
-  tipo tipo_localizacion_enum NOT NULL,
+  tipo varchar(20) NOT NULL CHECK (tipo IN ('barra', 'mesa', 'parado')),
   numero varchar(5) 
 );
 
@@ -64,8 +58,8 @@ CREATE TABLE pedidos (
   id_empleado int NOT NULL REFERENCES empleados(id_empleado),
   id_localizacion int REFERENCES localizaciones(id),
   fecha_hora timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  estado estado_pedido_enum NOT NULL,
-  tipo_pedido tipo_pedido_enum NOT NULL,
+  estado varchar(20) NOT NULL CHECK (estado IN ('pendiente', 'en preparacion', 'completado', 'cancelado')),
+  tipo_pedido varchar(20) NOT NULL CHECK (tipo_pedido IN ('local', 'para llevar', 'delivery')),
   total decimal(10,2) NOT NULL CHECK (total >= 0),
   cupon decimal(10,2) NOT NULL DEFAULT 0 CHECK (cupon >= 0),
   notas varchar(500),
@@ -111,3 +105,8 @@ CREATE TABLE pagos (
   id_metodo_pago int NOT NULL REFERENCES metodos_pago(id),
   fecha timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+GRANT ALL ON SCHEMA public TO api_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO api_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO api_user;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO api_user;
