@@ -133,7 +133,7 @@ export default {
   },
   methods: {
     async fetchInventario() {
-      const res = await fetch('http://localhost:3030/api/reportes/inventario');
+      const res = await fetch('/api/reportes/inventario');
       this.inventario = await res.json();
     },
     async buscar() {

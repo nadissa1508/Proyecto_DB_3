@@ -6,7 +6,7 @@ const pool = require('./connect_db');
 
 app.use(cors());
 
-app.get('/reporte/ventas', async (req, res) => {
+app.get('/api/reportes/ventas', async (req, res) => {
   const { fecha_inicio, fecha_fin, tipo_pedido, metodo_pago } = req.query;
   try {
     const result = await pool.query(
@@ -40,7 +40,7 @@ app.get('/reporte/ventas', async (req, res) => {
   }
 });
 
-app.get('/reporte/clientes-frecuentes', async (req, res) => {
+app.get('/api/reportes/clientes', async (req, res) => {
   const { fecha_inicio, fecha_fin, gasto_promedio, pedidos_realizados } = req.query;
 
   try {
@@ -77,7 +77,7 @@ app.get('/reporte/clientes-frecuentes', async (req, res) => {
   }
 });
 
-app.get('/reporte/inventario-ingredientes', async (req, res) => {
+app.get('/api/reportes/inventario', async (req, res) => {
   const { nombre_ingrediente, lote, disponibilidad, nombre_producto } = req.query;
 
   try {
@@ -117,7 +117,7 @@ app.get('/reporte/inventario-ingredientes', async (req, res) => {
   }
 });
 
-app.get('/reporte/pedidos', async (req, res) => {
+app.get('/api/reportes/pedidos', async (req, res) => {
   const { fecha_inicio, fecha_fin, estado, tipo_pedido } = req.query;
 
   try {
@@ -157,7 +157,7 @@ app.get('/reporte/pedidos', async (req, res) => {
 });
 
 
-app.get('/reporte/productos-mas-vendidos', async (req, res) => {
+app.get('/api/reportes/productos', async (req, res) => {
   const { fecha_inicio, fecha_fin, cantidad_veces_pedido, categoria } = req.query;
 
   try {

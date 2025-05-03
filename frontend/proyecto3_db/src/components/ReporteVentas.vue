@@ -132,7 +132,7 @@ export default {
   },
   methods: {
     async fetchVentas() {
-      const res = await fetch('http://localhost:3030/api/reportes/ventas');
+      const res = await fetch('/api/reportes/ventas');
       this.ventas = await res.json();
     },
     async buscar() {
