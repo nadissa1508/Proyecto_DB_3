@@ -131,7 +131,7 @@ export default {
   methods: {
     async fetchClientes() {
       // Puedes agregar filtros como query params si el backend los soporta
-      const res = await fetch('http://localhost:3030/api/reportes/clientes');
+      const res = await fetch('/api/reportes/clientes');
       this.clientes = await res.json();
     },
     async buscar() {

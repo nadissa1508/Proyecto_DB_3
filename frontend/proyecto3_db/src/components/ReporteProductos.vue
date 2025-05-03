@@ -128,7 +128,7 @@ export default {
   },
   methods: {
     async fetchProductos() {
-      const res = await fetch('http://localhost:3030/api/reportes/productos');
+      const res = await fetch('/api/reportes/productos');
       this.productos = await res.json();
     },
     async buscar() {
