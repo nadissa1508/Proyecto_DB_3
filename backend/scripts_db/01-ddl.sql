@@ -21,7 +21,8 @@ CREATE TABLE clientes (
   nombre varchar(100) NOT NULL,
   apellido varchar(100) NOT NULL,
   email varchar(100) UNIQUE NOT NULL,
-  puntos_fidelizacion int NOT NULL DEFAULT 0 CHECK (puntos_fidelizacion >= 0)
+  puntos_fidelizacion int NOT NULL DEFAULT 0 CHECK (puntos_fidelizacion >= 0),
+  fecha_registro timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Teléfonos de Clientes 
