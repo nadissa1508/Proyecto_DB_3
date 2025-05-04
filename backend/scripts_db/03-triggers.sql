@@ -1,10 +1,22 @@
 -- Trigger 1: Verificar stock antes de realizar una venta
+
 CREATE OR REPLACE FUNCTION verificar_stock()
 RETURNS TRIGGER AS $$
+DECLARE
+  rec RECORD;
+  stock_actual INT;
 BEGIN
-  IF (SELECT cantidad FROM ingredientes WHERE id_ingrediente = NEW.id_ingrediente) < NEW.cantidad THEN
-    RAISE EXCEPTION 'Stock insuficiente para el ingrediente %', NEW.id_ingrediente;
-  END IF;
+  -- Por cada ingrediente necesario para el producto
+  FOR rec IN SELECT ip.id_ingrediente, i.cantidad AS stock
+            FROM ingrediente_producto ip
+            JOIN ingredientes i ON ip.id_ingrediente = i.id_ingrediente
+            WHERE ip.id_producto = NEW.id_producto
+  LOOP
+    stock_actual := rec.stock;
+    IF stock_actual < NEW.cantidad THEN
+      RAISE EXCEPTION 'Stock insuficiente para el ingrediente % (stock actual: %, requerido: %)', rec.id_ingrediente, stock_actual, NEW.cantidad;
+    END IF;
+  END LOOP;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
