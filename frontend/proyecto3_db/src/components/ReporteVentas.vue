@@ -24,7 +24,8 @@
       <button type="button" @click="refrescar">Refrescar</button>
       <button type="button" @click="exportarPDF">Exportar PDF</button>
       <button type="button" @click="exportarExcel">Exportar Excel</button>
-      <span class="ayuda" title="Filtre por fecha, tipo de pedido y método de pago. Exporte o refresque los datos.">?</span>
+      <span class="ayuda"
+        title="Filtre por fecha, tipo de pedido y método de pago. Exporte o refresque los datos.">?</span>
     </form>
     <table class="tabla" id="tabla-ventas">
       <thead>
@@ -39,20 +40,21 @@
       </thead>
       <tbody>
         <tr v-for="venta in ventasFiltradas" :key="venta.id">
-          <td>{{ venta.id }}</td>
+          <td>{{ venta.id_pedido }}</td>
           <td>{{ venta.cliente }}</td>
           <td>{{ venta.vendedor }}</td>
           <td>{{ venta.fecha }}</td>
-          <td>${{ venta.total.toFixed(2) }}</td>
+          <td>${{ Number(venta.total).toFixed(2) }}</td>
           <td>{{ venta.metodo_pago }}</td>
         </tr>
       </tbody>
     </table>
     <div class="grafica-container">
-      <BarChart :chart-data="chartData" :options="chartOptions" />
+      <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
     </div>
     <div class="totales">
       <span><b>Total general:</b> ${{ totalGeneral.toFixed(2) }}</span>
+      <span><b>Total de ventas:</b> {{ ventasFiltradas.length }}</span>
       <span class="leyenda">
         <b>Leyenda:</b>
         <span class="leyenda-estado leyenda-pendiente"></span> Pendiente
@@ -70,6 +72,7 @@
 
 
 <script>
+import { defineComponent } from 'vue';
 import { Bar } from 'vue-chartjs';
 import {
   Chart as ChartJS,
@@ -83,30 +86,44 @@ import {
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
 
-const BarChart = {
+const BarChart = defineComponent({
   name: 'BarChart',
-  props: ['chartData', 'options'],
-  extends: Bar,
-  mounted() {
-    this.renderChart(this.chartData, this.options);
+  components: { Bar },
+  props: {
+    chartData: Object,
+    options: Object
   },
   watch: {
     chartData: {
-      handler(newData) {
-        this.renderChart(newData, this.options);
+      handler() {
+        this.render();
       },
       deep: true
     }
-  }
-};
+  },
+  methods: {
+    render() {
+      this.$refs.barChart.renderChart(this.chartData, this.options);
+    }
+  },
+  mounted() {
+    this.render();
+  },
+  template: `
+    <Bar ref="barChart" :chart-data="chartData" :options="options" />
+  `
+});
 
 export default {
   name: 'ReporteVentas',
   components: { BarChart },
   data() {
+    const hoy = new Date();
+    const mesPasado = new Date();
+    mesPasado.setMonth(hoy.getMonth() - 1);
     return {
-      fechaInicio: '',
-      fechaFin: '',
+      fechaInicio: this.formatDate(mesPasado),
+      fechaFin: this.formatDate(hoy),
       filtroTipoPedido: '',
       filtroMetodoPago: '',
       pagina: 1,
@@ -123,17 +140,61 @@ export default {
   },
   computed: {
     ventasFiltradas() {
+      let filtradas = this.ventas;
+
+      if (this.fechaInicio) {
+        filtradas = filtradas.filter(v => v.fecha >= this.fechaInicio);
+      }
+      if (this.fechaFin) {
+        filtradas = filtradas.filter(v => v.fecha <= this.fechaFin);
+      }
+      if (this.filtroTipoPedido) {
+        filtradas = filtradas.filter(v => v.tipo_pedido === this.filtroTipoPedido);
+      }
+      if (this.filtroMetodoPago) {
+        filtradas = filtradas.filter(v => v.metodo_pago === this.filtroMetodoPago);
+      }
+
       const start = (this.pagina - 1) * this.porPagina;
-      return this.ventas.slice(start, start + this.porPagina);
+      return filtradas.slice(start, start + this.porPagina);
     },
+
     totalGeneral() {
       return this.ventasFiltradas.reduce((acc, v) => acc + v.total, 0);
     }
   },
   methods: {
+    formatDate(date) {
+      if (!date) return '';
+      return date.toISOString().split('T')[0];
+    },
     async fetchVentas() {
-      const res = await fetch('/api/reportes/ventas');
-      this.ventas = await res.json();
+
+      try {
+        const API_URL = process.env.VUE_APP_API_URL || 'http://localhost:3030';
+
+        const params = new URLSearchParams({
+          fecha_inicio: this.fechaInicio,
+          fecha_fin: this.fechaFin,
+          tipo_pedido: this.filtroTipoPedido || '',
+          metodo_pago: this.filtroMetodoPago || ''
+        });
+
+        const res = await fetch(`${API_URL}/api/reportes/ventas?${params.toString()}`);
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || 'Error al cargar productos');
+        }
+
+        this.ventas = await res.json();
+        this.updateChart();
+        
+      } catch (error) {
+        console.error('Error:', error);
+        alert(error.message);
+        this.ventas = [];
+      }
     },
     async buscar() {
       this.pagina = 1;
@@ -161,15 +222,18 @@ export default {
       });
     },
     updateChart() {
-      if (!this.ventas.length) {
-        this.chartData = null;
-        return;
-      }
+      const dataFiltrada = this.ventasFiltradas;
+      // if (!this.ventas.length) {
+      //   this.chartData = null;
+      //   return;
+      // }
       // Obtiene los métodos de pago únicos de los datos reales
       const metodos = [...new Set(this.ventas.map(v => v.metodo_pago))];
       const labels = metodos;
       const data = labels.map(metodo =>
-        this.ventas.filter(v => v.metodo_pago === metodo).reduce((acc, v) => acc + v.total, 0)
+        dataFiltrada
+          .filter(v => v.metodo_pago === metodo)
+          .reduce((acc, v) => acc + v.total, 0)
       );
       this.chartData = {
         labels,
@@ -213,6 +277,7 @@ export default {
   padding: 2rem 2rem 1.5rem 2rem;
   margin: 2rem auto;
 }
+
 .filtros {
   display: flex;
   flex-wrap: wrap;
@@ -221,12 +286,14 @@ export default {
   justify-content: center;
   align-items: center;
 }
+
 .filtros label {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   font-weight: 500;
 }
+
 .ayuda {
   background: #42b983;
   color: #fff;
@@ -240,24 +307,30 @@ export default {
   margin-left: 0.5rem;
   cursor: pointer;
 }
+
 .tabla {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 1rem;
   background: #fafbfc;
 }
-.tabla th, .tabla td {
+
+.tabla th,
+.tabla td {
   border: 1px solid #ccc;
   padding: 0.7rem;
   text-align: center;
 }
+
 .tabla th {
   background: #f0f0f0;
 }
+
 .leyenda {
   margin-left: 2rem;
   font-size: 0.95rem;
 }
+
 .leyenda-estado {
   display: inline-block;
   width: 1.1em;
@@ -266,20 +339,32 @@ export default {
   margin-right: 0.3em;
   vertical-align: middle;
 }
-.leyenda-pendiente { background: #f7b731; }
-.leyenda-completado { background: #42b983; }
-.leyenda-cancelado { background: #eb3b5a; }
+
+.leyenda-pendiente {
+  background: #f7b731;
+}
+
+.leyenda-completado {
+  background: #42b983;
+}
+
+.leyenda-cancelado {
+  background: #eb3b5a;
+}
+
 .totales {
   text-align: right;
   margin-bottom: 1rem;
   font-size: 1.1rem;
 }
+
 .paginacion {
   display: flex;
   gap: 1rem;
   justify-content: center;
   align-items: center;
 }
+
 .paginacion button {
   padding: 0.3rem 1.2rem;
   border-radius: 6px;
@@ -288,11 +373,21 @@ export default {
   cursor: pointer;
   font-weight: 500;
 }
+
 .paginacion button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.estado-pendiente td { background: #fffbe6; }
-.estado-completado td { background: #eaffea; }
-.estado-cancelado td { background: #ffeaea; }
+
+.estado-pendiente td {
+  background: #fffbe6;
+}
+
+.estado-completado td {
+  background: #eaffea;
+}
+
+.estado-cancelado td {
+  background: #ffeaea;
+}
 </style>

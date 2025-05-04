@@ -3,16 +3,10 @@
     <h2>Inventario</h2>
     <form class="filtros">
       <label>Nombre del ingrediente:
-        <select v-model="filtroIngrediente">
-          <option value="">Todos</option>
-          <option v-for="i in ingredientesDummy" :key="i" :value="i">{{ i }}</option>
-        </select>
+        <input type="text" v-model="filtroIngrediente" placeholder="Buscar ingrediente..." />
       </label>
       <label>Lote:
-        <select v-model="filtroLote">
-          <option value="">Todos</option>
-          <option v-for="l in lotesDummy" :key="l" :value="l">{{ l }}</option>
-        </select>
+        <input type="text" v-model="filtroLote" placeholder="Buscar lote..." />
       </label>
       <label>Disponibilidad:
         <select v-model="filtroDisponibilidad">
@@ -22,16 +16,14 @@
         </select>
       </label>
       <label>Nombre producto:
-        <select v-model="filtroProducto">
-          <option value="">Todos</option>
-          <option v-for="p in productosDummy" :key="p" :value="p">{{ p }}</option>
-        </select>
+        <input type="text" v-model="filtroProducto" placeholder="Buscar producto específico..." />
       </label>
       <button type="button" @click="buscar">Buscar</button>
       <button type="button" @click="refrescar">Refrescar</button>
       <button type="button" @click="exportarPDF">Exportar PDF</button>
       <button type="button" @click="exportarExcel">Exportar Excel</button>
-      <span class="ayuda" title="Filtre por ingrediente, lote, disponibilidad y producto. Exporte o refresque los datos.">?</span>
+      <span class="ayuda"
+        title="Filtre por ingrediente, lote, disponibilidad y producto. Exporte o refresque los datos.">?</span>
     </form>
     <table class="tabla" id="tabla-inventario">
       <thead>
@@ -43,16 +35,16 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="item in inventarioFiltrado" :key="item.id">
-          <td>{{ item.id }}</td>
-          <td>{{ item.ingrediente }}</td>
-          <td>{{ item.cantidad || 100 }}</td>
+        <tr v-for="item in inventarioFiltrado" :key="item.id_ingrediente">
+          <td>{{ item.id_ingrediente }}</td>
+          <td>{{ item.nombre_ingrediente }}</td>
+          <td>{{ item.cantidad_disponible }}</td>
           <td>{{ item.lote }}</td>
         </tr>
       </tbody>
     </table>
     <div class="grafica-container">
-      <BarChart :chart-data="chartData" :options="chartOptions" />
+      <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
     </div>
     <div class="totales">
       <span><b>Total productos en página:</b> {{ inventarioFiltrado.length }}</span>
@@ -73,6 +65,7 @@
 
 
 <script>
+import { defineComponent } from 'vue';
 import { Bar } from 'vue-chartjs';
 import {
   Chart as ChartJS,
@@ -86,22 +79,33 @@ import {
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
 
-const BarChart = {
-  name: 'BarChart',
-  props: ['chartData', 'options'],
-  extends: Bar,
-  mounted() {
-    this.renderChart(this.chartData, this.options);
+const BarChart = defineComponent({
+  name: 'ReporteInventario',
+  components: { Bar },
+  props: {
+    chartData: Object,
+    options: Object
   },
   watch: {
     chartData: {
-      handler(newData) {
-        this.renderChart(newData, this.options);
+      handler() {
+        this.render();
       },
       deep: true
     }
-  }
-};
+  },
+  methods: {
+    render() {
+      this.$refs.barChart.renderChart(this.chartData, this.options);
+    }
+  },
+  mounted() {
+    this.render();
+  },
+  template: `
+    <Bar ref="barChart" :chart-data="chartData" :options="options" />
+  `
+});
 
 export default {
   name: 'ReporteInventario',
@@ -114,9 +118,6 @@ export default {
       filtroProducto: '',
       pagina: 1,
       porPagina: 10,
-      productosDummy: ['Café', 'Leche', 'Azúcar', 'Vasos'],
-      ingredientesDummy: ['Grano', 'Leche', 'Azúcar', 'Cartón'],
-      lotesDummy: ['Lote 1', 'Lote 2', 'Lote 3'],
       inventario: [],
       chartData: null,
       chartOptions: {
@@ -133,8 +134,35 @@ export default {
   },
   methods: {
     async fetchInventario() {
-      const res = await fetch('/api/reportes/inventario');
-      this.inventario = await res.json();
+      try {
+        const API_URL = process.env.VUE_APP_API_URL || 'http://localhost:3030';
+
+        const params = new URLSearchParams({
+          nombre_ingrediente: this.filtroIngrediente || '',
+          lote: this.filtroLote || '',
+          disponibilidad: this.filtroDisponibilidad || '',
+          nombre_producto: this.filtroProducto || ''
+        });
+
+        console.log('Parámetros enviados:', params.toString());
+
+        const res = await fetch(`${API_URL}/api/reportes/inventario?${params.toString()}`);
+
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || 'Error al cargar inventario');
+        }
+
+        this.inventario = await res.json();
+        this.updateChart();
+
+      } catch (error) {
+        console.error('Error en fetchInventario:', error);
+        alert(error.message);
+        this.pedidos = [];
+      }
+
     },
     async buscar() {
       this.pagina = 1;
@@ -210,6 +238,7 @@ export default {
   padding: 2rem 2rem 1.5rem 2rem;
   margin: 2rem auto;
 }
+
 .filtros {
   display: flex;
   flex-wrap: wrap;
@@ -218,12 +247,14 @@ export default {
   justify-content: center;
   align-items: center;
 }
+
 .filtros label {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   font-weight: 500;
 }
+
 .ayuda {
   background: #42b983;
   color: #fff;
@@ -237,24 +268,30 @@ export default {
   margin-left: 0.5rem;
   cursor: pointer;
 }
+
 .tabla {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 1rem;
   background: #fafbfc;
 }
-.tabla th, .tabla td {
+
+.tabla th,
+.tabla td {
   border: 1px solid #ccc;
   padding: 0.7rem;
   text-align: center;
 }
+
 .tabla th {
   background: #f0f0f0;
 }
+
 .leyenda {
   margin-left: 2rem;
   font-size: 0.95rem;
 }
+
 .leyenda-estado {
   display: inline-block;
   width: 1.1em;
@@ -263,23 +300,44 @@ export default {
   margin-right: 0.3em;
   vertical-align: middle;
 }
-.leyenda-optimo { background: #42b983; }
-.leyenda-bajo { background: #f7b731; }
-.leyenda-critico { background: #eb3b5a; }
-.estado-óptimo td { background: #eaffea; }
-.estado-bajo td { background: #fffbe6; }
-.estado-critico td { background: #ffeaea; }
+
+.leyenda-optimo {
+  background: #42b983;
+}
+
+.leyenda-bajo {
+  background: #f7b731;
+}
+
+.leyenda-critico {
+  background: #eb3b5a;
+}
+
+.estado-óptimo td {
+  background: #eaffea;
+}
+
+.estado-bajo td {
+  background: #fffbe6;
+}
+
+.estado-critico td {
+  background: #ffeaea;
+}
+
 .totales {
   text-align: right;
   margin-bottom: 1rem;
   font-size: 1.1rem;
 }
+
 .paginacion {
   display: flex;
   gap: 1rem;
   justify-content: center;
   align-items: center;
 }
+
 .paginacion button {
   padding: 0.3rem 1.2rem;
   border-radius: 6px;
@@ -288,6 +346,7 @@ export default {
   cursor: pointer;
   font-weight: 500;
 }
+
 .paginacion button:disabled {
   opacity: 0.5;
   cursor: not-allowed;

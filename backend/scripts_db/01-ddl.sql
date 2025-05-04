@@ -29,7 +29,7 @@ CREATE TABLE cliente_telefonos (
 -- Tabla de Categorías
 CREATE TABLE categorias (
   id_categoria serial PRIMARY KEY,
-  nombre varchar(50) NOT NULL,
+  nombre varchar(50) NOT NULL unique,
   descripcion varchar(200) NOT NULL
 );
 

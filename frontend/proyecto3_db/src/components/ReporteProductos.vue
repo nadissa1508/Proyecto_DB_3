@@ -9,15 +9,15 @@
         <input type="date" v-model="fechaFin" />
       </label>
       <label>Cantidad de veces pedido:
-        <select v-model="filtroCantidad">
-          <option value="">Todas</option>
-          <option v-for="c in cantidadesDummy" :key="c" :value="c">{{ c }}</option>
-        </select>
+        <input type="number" v-model.number="filtroCantidad" min="0"
+          @input="filtroCantidad = $event.target.value >= 0 ? $event.target.value : ''">
       </label>
       <label>Categoría:
         <select v-model="filtroCategoria">
           <option value="">Todas</option>
-          <option v-for="cat in categoriasDummy" :key="cat" :value="cat">{{ cat }}</option>
+          <option v-for="cat in categorias" :key="cat.id_categoria" :value="cat.nombre">
+            {{ cat.nombre }}
+          </option>
         </select>
       </label>
       <button type="button" @click="buscar">Buscar</button>
@@ -31,24 +31,30 @@
         <tr>
           <th>ID Producto</th>
           <th>Nombre</th>
+          <th v-if="mostrarVecesPedido">Veces Pedido</th>
           <th>Precio</th>
           <th>Costo</th>
+          <th>Ganancia</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="producto in productosFiltrados" :key="producto.id">
-          <td>{{ producto.id }}</td>
+        <tr v-for="producto in productosFiltrados" :key="producto.id_producto">
+          <td>{{ producto.id_producto }}</td>
           <td>{{ producto.nombre }}</td>
+          <td v-if="mostrarVecesPedido">{{ producto.veces_pedido }}</td>
           <td>${{ producto.precio || (producto.ingresos / (producto.cantidad || 1)).toFixed(2) }}</td>
-          <td>${{ producto.costo || (producto.precio ? (producto.precio * 0.6).toFixed(2) : ((producto.ingresos / (producto.cantidad || 1)) * 0.6).toFixed(2)) }}</td>
+          <td>${{ producto.costo || (producto.precio ? (producto.precio * 0.6).toFixed(2) : ((producto.ingresos /
+            (producto.cantidad || 1)) * 0.6).toFixed(2)) }}</td>
+          <td>${{ (producto.precio - producto.costo).toFixed(2) }}</td>
         </tr>
       </tbody>
     </table>
     <div class="grafica-container">
-      <BarChart :chart-data="chartData" :options="chartOptions" />
+      <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
     </div>
     <div class="totales">
       <span><b>Total ingresos en página:</b> ${{ totalGeneral.toFixed(2) }}</span>
+      <span><b>Ganancia total en página:</b> ${{ gananciaTotal.toFixed(2) }}</span>
       <span class="leyenda">
         <b>Leyenda:</b>
         <span class="leyenda-categoria leyenda-bebida"></span> Bebida
@@ -66,6 +72,7 @@
 
 
 <script>
+import { defineComponent } from 'vue';
 import { Bar } from 'vue-chartjs';
 import {
   Chart as ChartJS,
@@ -79,35 +86,50 @@ import {
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
 
-const BarChart = {
-  name: 'BarChart',
-  props: ['chartData', 'options'],
-  extends: Bar,
-  mounted() {
-    this.renderChart(this.chartData, this.options);
+const BarChart = defineComponent({
+  name: 'ReporteProductos',
+  components: { Bar },
+  props: {
+    chartData: Object,
+    options: Object
   },
   watch: {
     chartData: {
-      handler(newData) {
-        this.renderChart(newData, this.options);
+      handler() {
+        this.render();
       },
       deep: true
     }
-  }
-};
+  },
+  methods: {
+    render() {
+      this.$refs.barChart.renderChart(this.chartData, this.options);
+    }
+  },
+  mounted() {
+    this.render();
+  },
+  template: `
+    <Bar ref="barChart" :chart-data="chartData" :options="options" />
+  `
+});
 
 export default {
   name: 'ReporteProductos',
   components: { BarChart },
   data() {
+    const hoy = new Date();
+    const mesPasado = new Date();
+    mesPasado.setMonth(hoy.getMonth() - 1);
+
     return {
-      fechaInicio: '',
-      fechaFin: '',
+      fechaInicio: this.formatDate(mesPasado),
+      fechaFin: this.formatDate(hoy),
       filtroCategoria: '',
       filtroCantidad: '',
       pagina: 1,
       porPagina: 10,
-      categoriasDummy: ['Bebida', 'Snack', 'Otro'],
+      categoriasDummy: [],
       cantidadesDummy: [40, 70, 90, 120],
       productos: [],
       chartData: null,
@@ -117,19 +139,77 @@ export default {
       }
     };
   },
+  async created() {
+    await this.fetchCategorias();
+  },
   computed: {
     productosFiltrados() {
       const start = (this.pagina - 1) * this.porPagina;
       return this.productos.slice(start, start + this.porPagina);
     },
     totalGeneral() {
-      return this.productosFiltrados.reduce((acc, p) => acc + p.ingresos, 0);
+      return this.productosFiltrados.reduce((acc, p) => {
+        const cantidad = this.filtroCantidad ? 1 : p.veces_pedido || 0;
+        return acc + (p.precio * cantidad);
+      }, 0);
+    },
+    gananciaTotal() {
+      return this.productosFiltrados.reduce((acc, p) => {
+        const cantidad = this.filtroCantidad ? 1 : p.veces_pedido || 0;
+        return acc + ((p.precio - p.costo) * cantidad);
+      }, 0);
+    },
+    mostrarVecesPedido() {
+      return !this.filtroCantidad;
     }
   },
   methods: {
+    formatDate(date) {
+      if (!date) return '';
+      return date.toISOString().split('T')[0];
+    },
+
+    async fetchCategorias() {
+      try {
+        const API_URL = process.env.VUE_APP_API_URL || 'http://localhost:3030';
+        const res = await fetch(`${API_URL}/api/categorias`);
+        this.categorias = await res.json();
+      } catch (error) {
+        console.error('Error al cargar categorías:', error);
+      }
+    },
     async fetchProductos() {
-      const res = await fetch('/api/reportes/productos');
-      this.productos = await res.json();
+      try {
+        const API_URL = process.env.VUE_APP_API_URL || 'http://localhost:3030';
+
+        const params = new URLSearchParams({
+          fecha_inicio: this.fechaInicio,
+          fecha_fin: this.fechaFin,
+          cantidad_veces_pedido: this.filtroCantidad || '',
+          categoria: this.filtroCategoria || ''
+        });
+
+        const res = await fetch(`${API_URL}/api/reportes/productos?${params.toString()}`);
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || 'Error al cargar productos');
+        }
+
+        this.productos = (await res.json()).map(p => ({
+          ...p,
+          precio: Number(p.precio) || 0,
+          costo: Number(p.costo) || 0,
+          veces_pedido: Number(p.veces_pedido) || 0,
+          ingresos: Number(p.ingresos) || 0
+        }));
+
+        this.updateChart();
+      } catch (error) {
+        console.error('Error:', error);
+        alert(error.message);
+        this.productos = [];
+      }
     },
     async buscar() {
       this.pagina = 1;
@@ -205,6 +285,7 @@ export default {
   padding: 2rem 2rem 1.5rem 2rem;
   margin: 2rem auto;
 }
+
 .filtros {
   display: flex;
   flex-wrap: wrap;
@@ -213,12 +294,14 @@ export default {
   justify-content: center;
   align-items: center;
 }
+
 .filtros label {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   font-weight: 500;
 }
+
 .ayuda {
   background: #42b983;
   color: #fff;
@@ -232,24 +315,32 @@ export default {
   margin-left: 0.5rem;
   cursor: pointer;
 }
+
 .tabla {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 1rem;
   background: #fafbfc;
+  table-layout: fixed;
 }
-.tabla th, .tabla td {
+
+.tabla th,
+.tabla td {
   border: 1px solid #ccc;
   padding: 0.7rem;
   text-align: center;
+  transition: all 0.3s ease;
 }
+
 .tabla th {
   background: #f0f0f0;
 }
+
 .leyenda {
   margin-left: 2rem;
   font-size: 0.95rem;
 }
+
 .leyenda-categoria {
   display: inline-block;
   width: 1.1em;
@@ -258,20 +349,32 @@ export default {
   margin-right: 0.3em;
   vertical-align: middle;
 }
-.leyenda-bebida { background: #42b983; }
-.leyenda-snack { background: #f7b731; }
-.leyenda-otro { background: #eb3b5a; }
+
+.leyenda-bebida {
+  background: #42b983;
+}
+
+.leyenda-snack {
+  background: #f7b731;
+}
+
+.leyenda-otro {
+  background: #eb3b5a;
+}
+
 .totales {
   text-align: right;
   margin-bottom: 1rem;
   font-size: 1.1rem;
 }
+
 .paginacion {
   display: flex;
   gap: 1rem;
   justify-content: center;
   align-items: center;
 }
+
 .paginacion button {
   padding: 0.3rem 1.2rem;
   border-radius: 6px;
@@ -280,6 +383,7 @@ export default {
   cursor: pointer;
   font-weight: 500;
 }
+
 .paginacion button:disabled {
   opacity: 0.5;
   cursor: not-allowed;

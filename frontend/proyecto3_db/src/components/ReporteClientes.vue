@@ -8,23 +8,18 @@
       <label>Fecha fin:
         <input type="date" v-model="fechaFin" />
       </label>
-      <label>Gasto promedio:
-        <select v-model="filtroGastoPromedio">
-          <option value="">Todos</option>
-          <option v-for="g in gastosPromedioDummy" :key="g" :value="g">{{ g }}</option>
-        </select>
+      <label>Gasto mínimo realizado:
+        <input type="number" v-model.number="filtroGastoPromedio" min="0" step="0.01">
       </label>
       <label>Pedidos realizados:
-        <select v-model="filtroPedidosRealizados">
-          <option value="">Todos</option>
-          <option v-for="p in pedidosRealizadosDummy" :key="p" :value="p">{{ p }}</option>
-        </select>
+        <input type="number" v-model.number="filtroPedidosRealizados" min="0">
       </label>
       <button type="button" @click="buscar">Buscar</button>
       <button type="button" @click="refrescar">Refrescar</button>
       <button type="button" @click="exportarPDF">Exportar PDF</button>
       <button type="button" @click="exportarExcel">Exportar Excel</button>
-      <span class="ayuda" title="Filtre por fecha, gasto promedio y pedidos realizados. Exporte o refresque los datos.">?</span>
+      <span class="ayuda"
+        title="Filtre por fecha, gasto promedio y pedidos realizados. Exporte o refresque los datos.">?</span>
     </form>
     <table class="tabla" id="tabla-clientes">
       <thead>
@@ -33,22 +28,24 @@
           <th>Nombre Cliente</th>
           <th>Fecha de Registro</th>
           <th>Puntos Fidelización</th>
+          <th>total gastado</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="cliente in clientesFiltrados" :key="cliente.id">
-          <td>{{ cliente.id }}</td>
-          <td>{{ cliente.nombre }}</td>
-          <td>{{ cliente.fecha_registro || cliente.ultima }}</td>
-          <td>{{ cliente.puntos }}</td>
+        <tr v-for="cliente in clientesFiltrados" :key="cliente.id_cliente">
+          <td>{{ cliente.id_cliente }}</td>
+          <td>{{ cliente.nombre_cliente }}</td>
+          <td>{{ formatDateTime(cliente.fecha_registro) }}</td>
+          <td>{{ cliente.puntos_fidelizacion }}</td>
+          <td>{{ cliente.gasto_promedio }}</td>
         </tr>
       </tbody>
     </table>
     <div class="grafica-container">
-      <BarChart :chart-data="chartData" :options="chartOptions" />
+      <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
     </div>
     <div class="totales">
-      <span><b>Total gastado:</b> ${{ totalGeneral.toFixed(2) }}</span>
+      <span><b>Total gastado por todos los clientes:</b> ${{ totalGeneral.toFixed(2) }}</span>
       <span class="leyenda">
         <b>Leyenda:</b>
         <span class="leyenda-frecuencia leyenda-alta"></span> Alta
@@ -68,7 +65,10 @@
 
 
 <script>
+import { defineComponent } from 'vue';
 import { Bar } from 'vue-chartjs';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import {
   Chart as ChartJS,
   Title,
@@ -81,32 +81,47 @@ import {
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
 
-const BarChart = {
-  name: 'BarChart',
-  props: ['chartData', 'options'],
-  extends: Bar,
-  mounted() {
-    this.renderChart(this.chartData, this.options);
+const BarChart = defineComponent({
+  name: 'ReporteClientes',
+  components: { Bar },
+  props: {
+    chartData: Object,
+    options: Object
   },
   watch: {
     chartData: {
-      handler(newData) {
-        this.renderChart(newData, this.options);
+      handler() {
+        this.render();
       },
       deep: true
     }
-  }
-};
+  },
+  methods: {
+    render() {
+      this.$refs.barChart.renderChart(this.chartData, this.options);
+    }
+  },
+  mounted() {
+    this.render();
+  },
+  template: `
+    <Bar ref="barChart" :chart-data="chartData" :options="options" />
+  `
+});
 
 export default {
   name: 'ReporteClientes',
   components: { BarChart },
   data() {
+    const hoy = new Date();
+    const mesPasado = new Date();
+    mesPasado.setMonth(hoy.getMonth() - 1);
+
     return {
-      fechaInicio: '',
-      fechaFin: '',
-      filtroGastoPromedio: '',
-      filtroPedidosRealizados: '',
+      fechaInicio: this.formatDate(mesPasado),
+      fechaFin: this.formatDate(hoy),
+      filtroGastoPromedio: null,
+      filtroPedidosRealizados: null,
       pagina: 1,
       porPagina: 10,
       gastosPromedioDummy: [],
@@ -125,14 +140,54 @@ export default {
       return this.clientes.slice(start, start + this.porPagina);
     },
     totalGeneral() {
-      return this.clientesFiltrados.reduce((acc, c) => acc + c.gasto_promedio, 0);
+      return this.clientes.reduce((acc, cliente) => {
+        return acc + (Number(cliente.gasto_promedio) || 0);
+      }, 0);
+    },
+    promedioPedidos() {
+      if (this.clientes.length === 0) return 0;
+      const total = this.clientes.reduce((acc, cliente) => {
+        return acc + (Number(cliente.pedidos_realizados) || 0);
+      }, 0);
+      return (total / this.clientes.length).toFixed(1);
     }
   },
   methods: {
+    formatDate(date) {
+      return date.toISOString().split('T')[0];
+    },
+    formatDateTime(isoString) {
+      if (!isoString) return 'N/A';
+      return format(new Date(isoString), 'dd-MM-yyyy HH:mm:ss', { locale: es });
+    },
     async fetchClientes() {
-      // Puedes agregar filtros como query params si el backend los soporta
-      const res = await fetch('/api/reportes/clientes');
-      this.clientes = await res.json();
+      try {
+        const API_URL = process.env.VUE_APP_API_URL || 'http://localhost:3030';
+
+        const params = new URLSearchParams({
+          fecha_inicio: this.fechaInicio || '',
+          fecha_fin: this.fechaFin || '',
+          gasto_promedio: this.filtroGastoPromedio || '',
+          pedidos_realizados: this.filtroPedidosRealizados || ''
+        });
+
+        console.log("parametros: ", params.toString());
+
+        const res = await fetch(`${API_URL}/api/reportes/clientes?${params.toString()}`);
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({ error: 'Error desconocido' }));
+          throw new Error(errorData.error || 'Error al cargar clientes');
+        }
+
+        this.clientes = await res.json();
+        this.updateChart();
+      } catch (error) {
+        console.error('Error en fetch clientes :', error);
+        alert(error.message);
+        this.clientes = [];
+      }
+
     },
     async buscar() {
       this.pagina = 1;
@@ -160,6 +215,7 @@ export default {
       this.pagina = 1;
     },
     updateChart() {
+
       // Solo actualiza si hay datos
       if (!this.clientesFiltrados.length) {
         this.chartData = null;
@@ -210,6 +266,7 @@ export default {
   margin: 2rem auto;
   /* Removed duplicate align-items and justify-content */
 }
+
 .filtros {
   display: flex;
   flex-wrap: wrap;
@@ -218,12 +275,14 @@ export default {
   justify-content: center;
   align-items: center;
 }
+
 .filtros label {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   font-weight: 500;
 }
+
 .ayuda {
   background: #42b983;
   color: #fff;
@@ -237,24 +296,30 @@ export default {
   margin-left: 0.5rem;
   cursor: pointer;
 }
+
 .tabla {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 1rem;
   background: #fafbfc;
 }
-.tabla th, .tabla td {
+
+.tabla th,
+.tabla td {
   border: 1px solid #ccc;
   padding: 0.7rem;
   text-align: center;
 }
+
 .tabla th {
   background: #f0f0f0;
 }
+
 .leyenda {
   margin-left: 2rem;
   font-size: 0.95rem;
 }
+
 .leyenda-frecuencia {
   display: inline-block;
   width: 1.1em;
@@ -263,9 +328,19 @@ export default {
   margin-right: 0.3em;
   vertical-align: middle;
 }
-.leyenda-alta { background: #42b983; }
-.leyenda-media { background: #f7b731; }
-.leyenda-baja { background: #eb3b5a; }
+
+.leyenda-alta {
+  background: #42b983;
+}
+
+.leyenda-media {
+  background: #f7b731;
+}
+
+.leyenda-baja {
+  background: #eb3b5a;
+}
+
 .leyenda-estado {
   display: inline-block;
   width: 1.1em;
@@ -274,19 +349,28 @@ export default {
   margin-right: 0.3em;
   vertical-align: middle;
 }
-.leyenda-activo { background: #42b983; }
-.leyenda-inactivo { background: #eb3b5a; }
+
+.leyenda-activo {
+  background: #42b983;
+}
+
+.leyenda-inactivo {
+  background: #eb3b5a;
+}
+
 .totales {
   text-align: right;
   margin-bottom: 1rem;
   font-size: 1.1rem;
 }
+
 .paginacion {
   display: flex;
   gap: 1rem;
   justify-content: center;
   align-items: center;
 }
+
 .paginacion button {
   padding: 0.3rem 1.2rem;
   border-radius: 6px;
@@ -295,10 +379,17 @@ export default {
   cursor: pointer;
   font-weight: 500;
 }
+
 .paginacion button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.estado-activo td { background: #eaffea; }
-.estado-inactivo td { background: #ffeaea; }
+
+.estado-activo td {
+  background: #eaffea;
+}
+
+.estado-inactivo td {
+  background: #ffeaea;
+}
 </style>

@@ -6,37 +6,38 @@ const pool = require('./connect_db');
 
 app.use(cors());
 
-app.get('/api/reportes/ventas', async (req, res) => {
+app.get(`/api/reportes/ventas`, async (req, res) => {
   const { fecha_inicio, fecha_fin, tipo_pedido, metodo_pago } = req.query;
   try {
     const result = await pool.query(
       `
-      SELECT p.id_pedido, 
-             c.nombre || ' ' || c.apellido AS cliente,
-             e.nombre || ' ' || e.apellido AS vendedor,
-             p.fecha_hora AS fecha,
-             p.total,
-             mp.metodo_pago
-      FROM pedidos p
+      SELECT 
+        p.id_pedido, 
+        c.nombre || ' ' || c.apellido AS cliente,
+        e.nombre || ' ' || e.apellido AS vendedor,
+        p.fecha_hora AS fecha,
+        p.total,
+        mp.metodo_pago
+      FROM pagos pa
+      JOIN pedidos p ON pa.id_pedido = p.id_pedido
       JOIN clientes c ON p.id_cliente = c.id_cliente
       JOIN empleados e ON p.id_empleado = e.id_empleado
-      JOIN pagos pa ON pa.id_pedido = p.id_pedido
-      JOIN metodos_pago mp ON mp.id = pa.id_metodo_pago
+      JOIN metodos_pago mp ON pa.id_metodo_pago = mp.id
       WHERE p.fecha_hora BETWEEN $1 AND $2
-        AND ($3 IS NULL OR p.tipo_pedido = $3)
-        AND ($4 IS NULL OR mp.metodo_pago = $4)
+        AND p.tipo_pedido = $3
+        AND mp.metodo_pago = $4
       ORDER BY p.fecha_hora DESC
       `,
       [
         fecha_inicio,
         fecha_fin,
-        tipo_pedido || null,
+        tipo_pedido ? tipo_pedido.toLowerCase() : null, //verificar esto
         metodo_pago || null]
     );
     res.json(result.rows);
   } catch (err) {
     console.error('Error al obtener reporte de ventas:', err);
-    res.status(500).send('Error al obtener reporte de ventas');
+    res.status(500).json({ error: 'Error al obtener reporte de ventas', details: err.message });
   }
 });
 
@@ -72,8 +73,8 @@ app.get('/api/reportes/clientes', async (req, res) => {
 
     res.json(result.rows);
   } catch (err) {
-    console.error('Error al obtener reporte de clientes frecuentes:', err);
-    res.status(500).send('Error al obtener reporte de clientes frecuentes');
+    console.error('Error al obtener reporte de pedidos:', err);
+    res.status(500).json({ error: 'Error al obtener pedidos', details: err.message });
   }
 });
 
@@ -87,7 +88,10 @@ app.get('/api/reportes/inventario', async (req, res) => {
         i.id_ingrediente,
         i.nombre_producto AS nombre_ingrediente,
         i.cantidad AS cantidad_disponible,
-        i.lote
+        CASE 
+          WHEN i.lote IS NULL OR i.lote = '' THEN 'No aplica'
+          ELSE i.lote
+        END AS lote
       FROM ingredientes i
       LEFT JOIN ingrediente_producto ip ON i.id_ingrediente = ip.id_ingrediente
       LEFT JOIN productos p ON ip.id_producto = p.id_producto
@@ -106,14 +110,14 @@ app.get('/api/reportes/inventario', async (req, res) => {
     `, [
       nombre_ingrediente || null,
       lote || null,
-      disponibilidad || null,
+      disponibilidad ? disponibilidad.toLowerCase() : null,
       nombre_producto || null
     ]);
 
     res.json(result.rows);
   } catch (err) {
     console.error('Error en reporte de inventario de ingredientes:', err);
-    res.status(500).send('Error al obtener reporte de inventario');
+    res.status(500).json({ error: 'Error al obtener reporte de inventario', details: err.message });
   }
 });
 
@@ -137,30 +141,50 @@ app.get('/api/reportes/pedidos', async (req, res) => {
       JOIN clientes c ON p.id_cliente = c.id_cliente
       LEFT JOIN localizaciones l ON p.id_localizacion = l.id
       WHERE p.fecha_hora BETWEEN $1 AND $2
-        AND ($3 IS NULL OR p.estado = $3)
-        AND ($4 IS NULL OR p.tipo_pedido = $4)
+        AND ($3::text IS NULL OR p.estado = LOWER($3))
+        AND ($4::text IS NULL OR p.tipo_pedido = LOWER($4))
       ORDER BY p.fecha_hora DESC
       `,
       [
         fecha_inicio,
         fecha_fin,
-        estado || null,
-        tipo_pedido || null
+        estado ? estado.toLowerCase() : null,
+        tipo_pedido ? tipo_pedido.toLowerCase() : null
       ]
     );
 
     res.json(result.rows);
   } catch (err) {
     console.error('Error al obtener reporte de pedidos:', err);
-    res.status(500).send('Error al obtener reporte de pedidos');
+    res.status(500).json({ error: 'Error al obtener pedidos', details: err.message });
   }
 });
 
+app.get('/api/categorias', async (req, res) => {
+  try {
+    const result = await pool.query(`select id_categoria, nombre from categorias;`);
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error('Error al obtener categorias de productos', err);
+    res.status(500).json({ error: 'Error al obtener categorias de productos', details: err.message });
+  }
+});
 
 app.get('/api/reportes/productos', async (req, res) => {
   const { fecha_inicio, fecha_fin, cantidad_veces_pedido, categoria } = req.query;
 
   try {
+
+    let categoriaId = null;
+    if (categoria) {
+      const categoriaRes = await pool.query(
+        'SELECT id_categoria FROM categorias WHERE nombre = $1',
+        [categoria]
+      );
+      categoriaId = categoriaRes.rows[0]?.id_categoria || null;
+    }
+
     const result = await pool.query(
       `
       SELECT 
@@ -182,7 +206,7 @@ app.get('/api/reportes/productos', async (req, res) => {
       [
         fecha_inicio,
         fecha_fin,
-        categoria || null,
+        categoriaId,
         cantidad_veces_pedido || null
       ]
     );
@@ -190,7 +214,7 @@ app.get('/api/reportes/productos', async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error al obtener reporte de productos más vendidos:', err);
-    res.status(500).send('Error al obtener reporte de productos más vendidos');
+    res.status(500).json({ error: 'Error al obtener reporte de productos', details: err.message });
   }
 });
 

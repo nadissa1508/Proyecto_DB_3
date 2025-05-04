@@ -37,17 +37,17 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="pedido in pedidosFiltrados" :key="pedido.id">
-          <td>{{ pedido.id }}</td>
-          <td>{{ pedido.cliente || 'Cliente ' + pedido.id }}</td>
-          <td>{{ pedido.localizacion || 'Sucursal Centro' }}</td>
-          <td>{{ pedido.fecha_hora || (pedido.fecha + ' 12:00') }}</td>
-          <td>${{ pedido.total.toFixed(2) }}</td>
+        <tr v-for="pedido in pedidosFiltrados" :key="pedido.id_pedido">
+          <td>{{ pedido.id_pedido }}</td>
+          <td>{{ pedido.cliente }}</td>
+          <td>{{ pedido.localizacion }}</td>
+          <td>{{ formatDateTime(pedido.fecha_hora) }}</td>
+          <td>${{ Number(pedido.total || 0).toFixed(2) }}</td>
         </tr>
       </tbody>
     </table>
     <div class="grafica-container">
-      <BarChart :chart-data="chartData" :options="chartOptions" />
+      <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
     </div>
     <div class="totales">
       <span><b>Total pedidos en página:</b> {{ pedidosFiltrados.length }}</span>
@@ -69,7 +69,10 @@
 
 
 <script>
+import { defineComponent } from 'vue';
 import { Bar } from 'vue-chartjs';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import {
   Chart as ChartJS,
   Title,
@@ -82,35 +85,51 @@ import {
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
 
-const BarChart = {
-  name: 'BarChart',
-  props: ['chartData', 'options'],
-  extends: Bar,
-  mounted() {
-    this.renderChart(this.chartData, this.options);
+const BarChart = defineComponent({
+  name: 'ReportePedidos',
+  components: { Bar },
+  props: {
+    chartData: Object,
+    options: Object
   },
   watch: {
     chartData: {
-      handler(newData) {
-        this.renderChart(newData, this.options);
+      handler() {
+        this.render();
       },
       deep: true
     }
-  }
-};
+  },
+  methods: {
+    render() {
+      this.$refs.barChart.renderChart(this.chartData, this.options);
+    }
+  },
+  mounted() {
+    this.render();
+  },
+  template: `
+    <Bar ref="barChart" :chart-data="chartData" :options="options" />
+  `
+});
 
 export default {
   name: 'ReportePedidos',
   components: { BarChart },
   data() {
+
+    const hoy = new Date();
+    const semanaPasada = new Date();
+    semanaPasada.setDate(hoy.getDate() - 7);
+
     return {
-      fechaInicio: '',
-      fechaFin: '',
+      fechaInicio: this.formatDate(semanaPasada),
+      fechaFin: this.formatDate(hoy),
       filtroEstado: '',
       filtroTipoPedido: '',
       pagina: 1,
       porPagina: 10,
-      estadosDummy: ['Pendiente', 'En preparación', 'Completado', 'Cancelado'],
+      estadosDummy: ['Pendiente', 'En preparacion', 'Completado', 'Cancelado'],
       tiposPedidoDummy: ['Local', 'Para llevar', 'Delivery'],
       pedidos: [],
       chartData: null,
@@ -127,10 +146,40 @@ export default {
     }
   },
   methods: {
+    formatDate(date) {
+      return date.toISOString().split('T')[0];
+    },
+    formatDateTime(isoString) {
+      if (!isoString) return 'N/A';
+      return format(new Date(isoString), 'dd-MM-yyyy HH:mm:ss', { locale: es });
+    },
     async fetchPedidos() {
-      // Puedes agregar filtros como query params si el backend los soporta
-      const res = await fetch('/api/reportes/pedidos');
-      this.pedidos = await res.json();
+      try {
+        const API_URL = process.env.VUE_APP_API_URL || 'http://localhost:3030';
+
+        const params = new URLSearchParams({
+          fecha_inicio: this.fechaInicio || '',
+          fecha_fin: this.fechaFin || '',
+          estado: this.filtroEstado || '',
+          tipo_pedido: this.filtroTipoPedido || ''
+        });
+
+        console.log('Parámetros enviados:', params.toString());
+
+        const res = await fetch(`${API_URL}/api/reportes/pedidos?${params.toString()}`);
+
+        if (!res.ok) {
+          const error = await res.json();
+          throw new Error(error.error || 'Error al cargar pedidos');
+        }
+        this.pedidos = await res.json();
+        this.updateChart();
+      } catch (error) {
+        console.error('Error en fetchPedidos:', error);
+        alert(error.message);
+        this.pedidos = [];
+      }
+
     },
     async buscar() {
       this.pagina = 1;
@@ -211,6 +260,7 @@ export default {
   padding: 2rem 2rem 1.5rem 2rem;
   margin: 2rem auto;
 }
+
 .filtros {
   display: flex;
   flex-wrap: wrap;
@@ -219,12 +269,14 @@ export default {
   justify-content: center;
   align-items: center;
 }
+
 .filtros label {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   font-weight: 500;
 }
+
 .ayuda {
   background: #42b983;
   color: #fff;
@@ -238,24 +290,30 @@ export default {
   margin-left: 0.5rem;
   cursor: pointer;
 }
+
 .tabla {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 1rem;
   background: #fafbfc;
 }
-.tabla th, .tabla td {
+
+.tabla th,
+.tabla td {
   border: 1px solid #ccc;
   padding: 0.7rem;
   text-align: center;
 }
+
 .tabla th {
   background: #f0f0f0;
 }
+
 .leyenda {
   margin-left: 2rem;
   font-size: 0.95rem;
 }
+
 .leyenda-estado {
   display: inline-block;
   width: 1.1em;
@@ -264,25 +322,52 @@ export default {
   margin-right: 0.3em;
   vertical-align: middle;
 }
-.leyenda-pendiente { background: #f7b731; }
-.leyenda-en-preparación { background: #7ed6df; }
-.leyenda-completado { background: #42b983; }
-.leyenda-cancelado { background: #eb3b5a; }
-.estado-pendiente td { background: #fffbe6; }
-.estado-en-preparación td { background: #e6f7fb; }
-.estado-completado td { background: #eaffea; }
-.estado-cancelado td { background: #ffeaea; }
+
+.leyenda-pendiente {
+  background: #f7b731;
+}
+
+.leyenda-en-preparación {
+  background: #7ed6df;
+}
+
+.leyenda-completado {
+  background: #42b983;
+}
+
+.leyenda-cancelado {
+  background: #eb3b5a;
+}
+
+.estado-pendiente td {
+  background: #fffbe6;
+}
+
+.estado-en-preparación td {
+  background: #e6f7fb;
+}
+
+.estado-completado td {
+  background: #eaffea;
+}
+
+.estado-cancelado td {
+  background: #ffeaea;
+}
+
 .totales {
   text-align: right;
   margin-bottom: 1rem;
   font-size: 1.1rem;
 }
+
 .paginacion {
   display: flex;
   gap: 1rem;
   justify-content: center;
   align-items: center;
 }
+
 .paginacion button {
   padding: 0.3rem 1.2rem;
   border-radius: 6px;
@@ -291,6 +376,7 @@ export default {
   cursor: pointer;
   font-weight: 500;
 }
+
 .paginacion button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
