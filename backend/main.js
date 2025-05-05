@@ -7,7 +7,7 @@ const pool = require('./connect_db');
 app.use(cors());
 
 app.get(`/api/reportes/ventas`, async (req, res) => {
-  const { fecha_inicio, fecha_fin, tipo_pedido, metodo_pago } = req.query;
+  const { fecha_inicio, fecha_fin } = req.query;
   try {
     const result = await pool.query(
       `
@@ -23,16 +23,11 @@ app.get(`/api/reportes/ventas`, async (req, res) => {
       JOIN clientes c ON p.id_cliente = c.id_cliente
       JOIN empleados e ON p.id_empleado = e.id_empleado
       JOIN metodos_pago mp ON pa.id_metodo_pago = mp.id
-      WHERE p.fecha_hora BETWEEN $1 AND $2
-        AND p.tipo_pedido = $3
-        AND mp.metodo_pago = $4
+      WHERE ($1::date IS NULL OR p.fecha_hora >= $1)
+        AND ($2::date IS NULL OR p.fecha_hora <= $2)
       ORDER BY p.fecha_hora DESC
       `,
-      [
-        fecha_inicio,
-        fecha_fin,
-        tipo_pedido ? tipo_pedido.toLowerCase() : null, //verificar esto
-        metodo_pago || null]
+      [fecha_inicio || null, fecha_fin || null]
     );
     res.json(result.rows);
   } catch (err) {

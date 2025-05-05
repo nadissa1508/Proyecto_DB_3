@@ -49,9 +49,6 @@
         </tr>
       </tbody>
     </table>
-    <div class="grafica-container">
-      <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
-    </div>
     <div class="totales">
       <span><b>Total ingresos en página:</b> ${{ totalGeneral.toFixed(2) }}</span>
       <span><b>Ganancia total en página:</b> ${{ gananciaTotal.toFixed(2) }}</span>
@@ -66,6 +63,9 @@
       <button :disabled="pagina === 1" @click="pagina--">Anterior</button>
       <span>Página {{ pagina }}</span>
       <button :disabled="productosFiltrados.length < porPagina" @click="pagina++">Siguiente</button>
+    </div>
+    <div class="grafica-container">
+      <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
     </div>
   </div>
 </template>
@@ -237,18 +237,20 @@ export default {
       this.pagina = 1;
     },
     updateChart() {
-      if (!this.productos.length) {
-        this.chartData = null;
-        return;
-      }
-      const labels = this.productos.map(p => p.nombre);
-      const data = this.productos.map(p => p.ingresos);
+      const dataFiltrada = this.productosFiltrados;
+      const labels = [...new Set(dataFiltrada.map(p => p.nombre))];
+      const data = labels.map(producto =>
+        dataFiltrada
+          .filter(p => p.nombre === producto)
+          .reduce((acc, p) => acc + (Number(p.veces_pedido) || 0), 0)
+      );
+
       this.chartData = {
         labels,
         datasets: [
           {
-            label: 'Ingresos por producto',
-            backgroundColor: '#42b983',
+            label: 'Cantidad de Veces Pedido por Producto',
+            backgroundColor: ['#42b983', '#f7b731', '#eb3b5a'],
             data
           }
         ]
@@ -276,7 +278,7 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   max-width: 900px;
   width: 100%;
   background: #fff;

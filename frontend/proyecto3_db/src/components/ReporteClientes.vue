@@ -41,9 +41,6 @@
         </tr>
       </tbody>
     </table>
-    <div class="grafica-container">
-      <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
-    </div>
     <div class="totales">
       <span><b>Total gastado por todos los clientes:</b> ${{ totalGeneral.toFixed(2) }}</span>
       <span class="leyenda">
@@ -59,6 +56,9 @@
       <button :disabled="pagina === 1" @click="pagina--">Anterior</button>
       <span>Página {{ pagina }}</span>
       <button :disabled="clientesFiltrados.length < porPagina" @click="pagina++">Siguiente</button>
+    </div>
+    <div class="grafica-container">
+      <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
     </div>
   </div>
 </template>
@@ -215,20 +215,20 @@ export default {
       this.pagina = 1;
     },
     updateChart() {
+      const dataFiltrada = this.clientesFiltrados;
+      const labels = [...new Set(dataFiltrada.map(c => c.nombre_cliente))];
+      const data = labels.map(cliente =>
+        dataFiltrada
+          .filter(c => c.nombre_cliente === cliente)
+          .reduce((acc, c) => acc + (Number(c.gasto_promedio) || 0), 0)
+      );
 
-      // Solo actualiza si hay datos
-      if (!this.clientesFiltrados.length) {
-        this.chartData = null;
-        return;
-      }
-      const labels = this.clientesFiltrados.map(c => c.nombre);
-      const data = this.clientesFiltrados.map(c => c.puntos);
       this.chartData = {
         labels,
         datasets: [
           {
-            label: 'Puntos de fidelización',
-            backgroundColor: '#42b983',
+            label: 'Total Gastado por Cliente',
+            backgroundColor: ['#42b983', '#f7b731', '#eb3b5a'],
             data
           }
         ]
@@ -256,7 +256,7 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start; /* Changed from center to flex-start */
   max-width: 900px;
   width: 100%;
   background: #fff;
@@ -264,7 +264,6 @@ export default {
   box-shadow: 0 2px 12px #0001;
   padding: 2rem 2rem 1.5rem 2rem;
   margin: 2rem auto;
-  /* Removed duplicate align-items and justify-content */
 }
 
 .filtros {

@@ -20,6 +20,12 @@
           <option v-for="m in metodosPago" :key="m" :value="m">{{ m }}</option>
         </select>
       </label>
+      <label>Mensuales:
+        <select v-model="filtroMensuales">
+          <option value="">Todos</option>
+          <option v-for="mes in meses" :key="mes.value" :value="mes.value">{{ mes.label }}</option>
+        </select>
+      </label>
       <button type="button" @click="buscar">Buscar</button>
       <button type="button" @click="refrescar">Refrescar</button>
       <button type="button" @click="exportarPDF">Exportar PDF</button>
@@ -49,9 +55,6 @@
         </tr>
       </tbody>
     </table>
-    <div class="grafica-container">
-      <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
-    </div>
     <div class="totales">
       <span><b>Total general:</b> ${{ totalGeneral.toFixed(2) }}</span>
       <span><b>Total de ventas:</b> {{ ventasFiltradas.length }}</span>
@@ -66,6 +69,9 @@
       <button :disabled="pagina === 1" @click="pagina--">Anterior</button>
       <span>Página {{ pagina }}</span>
       <button :disabled="ventasFiltradas.length < porPagina" @click="pagina++">Siguiente</button>
+    </div>
+    <div class="grafica-container">
+      <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
     </div>
   </div>
 </template>
@@ -126,10 +132,25 @@ export default {
       fechaFin: this.formatDate(hoy),
       filtroTipoPedido: '',
       filtroMetodoPago: '',
+      filtroMensuales: '',
       pagina: 1,
       porPagina: 10,
       tiposPedido: ['Local', 'Para llevar', 'Delivery'],
       metodosPago: ['Efectivo', 'Tarjeta', 'Transferencia'],
+      meses: [
+        { value: '01', label: 'Enero' },
+        { value: '02', label: 'Febrero' },
+        { value: '03', label: 'Marzo' },
+        { value: '04', label: 'Abril' },
+        { value: '05', label: 'Mayo' },
+        { value: '06', label: 'Junio' },
+        { value: '07', label: 'Julio' },
+        { value: '08', label: 'Agosto' },
+        { value: '09', label: 'Septiembre' },
+        { value: '10', label: 'Octubre' },
+        { value: '11', label: 'Noviembre' },
+        { value: '12', label: 'Diciembre' }
+      ],
       ventas: [],
       chartData: null,
       chartOptions: {
@@ -154,13 +175,16 @@ export default {
       if (this.filtroMetodoPago) {
         filtradas = filtradas.filter(v => v.metodo_pago === this.filtroMetodoPago);
       }
+      if (this.filtroMensuales) {
+        filtradas = filtradas.filter(v => new Date(v.fecha).getMonth() + 1 === Number(this.filtroMensuales));
+      }
 
       const start = (this.pagina - 1) * this.porPagina;
       return filtradas.slice(start, start + this.porPagina);
     },
 
     totalGeneral() {
-      return this.ventasFiltradas.reduce((acc, v) => acc + v.total, 0);
+      return this.ventasFiltradas.reduce((acc, v) => acc + (Number(v.total) || 0), 0); // Ensure `total` is a number
     }
   },
   methods: {
@@ -169,27 +193,24 @@ export default {
       return date.toISOString().split('T')[0];
     },
     async fetchVentas() {
-
       try {
         const API_URL = process.env.VUE_APP_API_URL || 'http://localhost:3030';
 
         const params = new URLSearchParams({
-          fecha_inicio: this.fechaInicio,
-          fecha_fin: this.fechaFin,
-          tipo_pedido: this.filtroTipoPedido || '',
-          metodo_pago: this.filtroMetodoPago || ''
+          fecha_inicio: this.fechaInicio || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+          fecha_fin: this.fechaFin || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]
         });
 
         const res = await fetch(`${API_URL}/api/reportes/ventas?${params.toString()}`);
 
         if (!res.ok) {
           const error = await res.json();
-          throw new Error(error.error || 'Error al cargar productos');
+          throw new Error(error.error || 'Error al cargar ventas');
         }
 
-        this.ventas = await res.json();
+        const data = await res.json();
+        this.ventas = Array.isArray(data) ? data : []; // Ensure `ventas` is an array
         this.updateChart();
-        
       } catch (error) {
         console.error('Error:', error);
         alert(error.message);
@@ -205,6 +226,7 @@ export default {
       this.fechaFin = '';
       this.filtroTipoPedido = '';
       this.filtroMetodoPago = '';
+      this.filtroMensuales = '';
       this.pagina = 1;
     },
     exportarPDF() {
@@ -223,23 +245,18 @@ export default {
     },
     updateChart() {
       const dataFiltrada = this.ventasFiltradas;
-      // if (!this.ventas.length) {
-      //   this.chartData = null;
-      //   return;
-      // }
-      // Obtiene los métodos de pago únicos de los datos reales
-      const metodos = [...new Set(this.ventas.map(v => v.metodo_pago))];
-      const labels = metodos;
+      const labels = [...new Set(dataFiltrada.map(v => v.metodo_pago))];
       const data = labels.map(metodo =>
         dataFiltrada
           .filter(v => v.metodo_pago === metodo)
-          .reduce((acc, v) => acc + v.total, 0)
+          .reduce((acc, v) => acc + (Number(v.total) || 0), 0)
       );
+
       this.chartData = {
         labels,
         datasets: [
           {
-            label: 'Ventas por método de pago',
+            label: 'Total por Método de Pago',
             backgroundColor: ['#42b983', '#f7b731', '#eb3b5a'],
             data
           }
@@ -268,7 +285,7 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   max-width: 900px;
   width: 100%;
   background: #fff;

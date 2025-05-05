@@ -43,9 +43,6 @@
         </tr>
       </tbody>
     </table>
-    <div class="grafica-container">
-      <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
-    </div>
     <div class="totales">
       <span><b>Total productos en página:</b> {{ inventarioFiltrado.length }}</span>
       <span class="leyenda">
@@ -59,6 +56,9 @@
       <button :disabled="pagina === 1" @click="pagina--">Anterior</button>
       <span>Página {{ pagina }}</span>
       <button :disabled="inventarioFiltrado.length < porPagina" @click="pagina++">Siguiente</button>
+    </div>
+    <div class="grafica-container">
+      <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
     </div>
   </div>
 </template>
@@ -190,18 +190,20 @@ export default {
       this.pagina = 1;
     },
     updateChart() {
-      if (!this.inventario.length) {
-        this.chartData = null;
-        return;
-      }
-      const labels = this.inventario.map(i => i.ingrediente);
-      const data = this.inventario.map(i => i.cantidad);
+      const dataFiltrada = this.inventarioFiltrado;
+      const labels = [...new Set(dataFiltrada.map(i => i.nombre_ingrediente))];
+      const data = labels.map(ingrediente =>
+        dataFiltrada
+          .filter(i => i.nombre_ingrediente === ingrediente)
+          .reduce((acc, i) => acc + (Number(i.cantidad_disponible) || 0), 0)
+      );
+
       this.chartData = {
         labels,
         datasets: [
           {
-            label: 'Cantidad disponible',
-            backgroundColor: '#42b983',
+            label: 'Cantidad Disponible por Ingrediente',
+            backgroundColor: ['#42b983', '#f7b731', '#eb3b5a'],
             data
           }
         ]
@@ -229,7 +231,7 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   max-width: 900px;
   width: 100%;
   background: #fff;

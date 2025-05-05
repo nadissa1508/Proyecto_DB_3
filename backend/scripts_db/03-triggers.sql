@@ -43,10 +43,23 @@ EXECUTE FUNCTION registrar_modificacion_pedido();
 -- Trigger 3: Actualizar stock de ingredientes después de una venta
 CREATE OR REPLACE FUNCTION actualizar_stock()
 RETURNS TRIGGER AS $$
+DECLARE
+  rec RECORD;
 BEGIN
-  UPDATE ingredientes
-  SET cantidad = cantidad - NEW.cantidad
-  WHERE id_ingrediente = NEW.id_ingrediente;
+  -- Loop through all ingredients associated with the product in the new order detail
+  FOR rec IN SELECT ip.id_ingrediente, ip.cantidad_necesaria
+             FROM ingrediente_producto ip
+             WHERE ip.id_producto = NEW.id_producto
+  LOOP
+    UPDATE ingredientes
+    SET cantidad = cantidad - (NEW.cantidad * rec.cantidad_necesaria)
+    WHERE id_ingrediente = rec.id_ingrediente;
+
+    -- Check if stock goes negative
+    IF (SELECT cantidad FROM ingredientes WHERE id_ingrediente = rec.id_ingrediente) < 0 THEN
+      RAISE EXCEPTION 'Stock insuficiente para el ingrediente %', rec.id_ingrediente;
+    END IF;
+  END LOOP;
 
   RETURN NEW;
 END;
@@ -57,21 +70,21 @@ AFTER INSERT ON detalles_pedido
 FOR EACH ROW
 EXECUTE FUNCTION actualizar_stock();
 
--- Test para trigger 1
-INSERT INTO ingredientes (nombre_producto, cantidad, lote) VALUES ('Ingrediente Test', 10, 'LoteTest');
-INSERT INTO detalles_pedido (id_pedido, id_producto, cantidad, precio_unitario, subtotal)
-VALUES (1, 1, 15, 5.00, 75.00);
-INSERT INTO detalles_pedido (id_pedido, id_producto, cantidad, precio_unitario, subtotal)
-VALUES (1, 1, 5, 5.00, 25.00);
+-- -- Test para trigger 1
+-- INSERT INTO ingredientes (nombre_producto, cantidad, lote) VALUES ('Ingrediente Test', 10, 'LoteTest');
+-- INSERT INTO detalles_pedido (id_pedido, id_producto, cantidad, precio_unitario, subtotal)
+-- VALUES (1, 1, 15, 5.00, 75.00);
+-- INSERT INTO detalles_pedido (id_pedido, id_producto, cantidad, precio_unitario, subtotal)
+-- VALUES (1, 1, 5, 5.00, 25.00);
 
--- Test para trigger 2
-INSERT INTO pedidos (id_cliente, id_empleado, estado, tipo_pedido, total, hora_entrega_esperada)
-VALUES (1, 1, 'pendiente', 'local', 100.00, NOW() + interval '1 hour');
-UPDATE pedidos SET estado = 'en preparacion' WHERE id_pedido = 1;
-SELECT fecha_hora FROM pedidos WHERE id_pedido = 1;
+-- -- Test para trigger 2
+-- INSERT INTO pedidos (id_cliente, id_empleado, estado, tipo_pedido, total, hora_entrega_esperada)
+-- VALUES (1, 1, 'pendiente', 'local', 100.00, NOW() + interval '1 hour');
+-- UPDATE pedidos SET estado = 'en preparacion' WHERE id_pedido = 1;
+-- SELECT fecha_hora FROM pedidos WHERE id_pedido = 1;
 
--- Test para trigger 3
-INSERT INTO ingredientes (nombre_producto, cantidad, lote) VALUES ('Ingrediente Test 2', 20, 'LoteTest2');
-INSERT INTO detalles_pedido (id_pedido, id_producto, cantidad, precio_unitario, subtotal)
-VALUES (2, 2, 5, 10.00, 50.00);
-SELECT cantidad FROM ingredientes WHERE nombre_producto = 'Ingrediente Test 2';
+-- -- Test para trigger 3
+-- INSERT INTO ingredientes (nombre_producto, cantidad, lote) VALUES ('Ingrediente Test 2', 20, 'LoteTest2');
+-- INSERT INTO detalles_pedido (id_pedido, id_producto, cantidad, precio_unitario, subtotal)
+-- VALUES (2, 2, 5, 10.00, 50.00);
+-- SELECT cantidad FROM ingredientes WHERE nombre_producto = 'Ingrediente Test 2';

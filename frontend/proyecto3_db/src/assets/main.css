@@ -5,6 +5,8 @@
   margin: 0 auto;
   padding: 2rem;
   font-weight: normal;
+  background-color: #ffffff;
+  color: #000000;
 }
 
 a,
@@ -36,10 +38,18 @@ a,
   }
 
   .container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+}
+
+body {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  padding: 20px;
-  }
+  background-color: #f0f0f0;
 }

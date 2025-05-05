@@ -46,9 +46,6 @@
         </tr>
       </tbody>
     </table>
-    <div class="grafica-container">
-      <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
-    </div>
     <div class="totales">
       <span><b>Total pedidos en página:</b> {{ pedidosFiltrados.length }}</span>
       <span class="leyenda">
@@ -63,6 +60,9 @@
       <button :disabled="pagina === 1" @click="pagina--">Anterior</button>
       <span>Página {{ pagina }}</span>
       <button :disabled="pedidosFiltrados.length < porPagina" @click="pagina++">Siguiente</button>
+    </div>
+    <div class="grafica-container">
+      <Bar v-if="chartData" :data="chartData" :options="chartOptions" />
     </div>
   </div>
 </template>
@@ -207,23 +207,20 @@ export default {
       this.pagina = 1;
     },
     updateChart() {
-      // Solo actualiza si hay datos
-      if (!this.pedidos.length) {
-        this.chartData = null;
-        return;
-      }
-      // Obtiene los estados únicos de los pedidos reales
-      const estados = [...new Set(this.pedidos.map(p => p.estado))];
-      const labels = estados;
-      const data = labels.map(estado =>
-        this.pedidos.filter(p => p.estado === estado).length
+      const dataFiltrada = this.pedidosFiltrados;
+      const labels = [...new Set(dataFiltrada.map(p => p.localizacion))];
+      const data = labels.map(localizacion =>
+        dataFiltrada
+          .filter(p => p.localizacion === localizacion)
+          .reduce((acc, p) => acc + (Number(p.total) || 0), 0)
       );
+
       this.chartData = {
         labels,
         datasets: [
           {
-            label: 'Cantidad de pedidos',
-            backgroundColor: ['#f7b731', '#7ed6df', '#42b983', '#eb3b5a'],
+            label: 'Total por Localización',
+            backgroundColor: ['#42b983', '#f7b731', '#eb3b5a'],
             data
           }
         ]
@@ -251,7 +248,7 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   max-width: 900px;
   width: 100%;
   background: #fff;
