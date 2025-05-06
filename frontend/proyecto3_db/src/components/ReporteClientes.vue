@@ -65,7 +65,7 @@
 
 
 <script>
-import { defineComponent } from 'vue';
+
 import { Bar } from 'vue-chartjs';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -81,37 +81,9 @@ import {
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
 
-const BarChart = defineComponent({
-  name: 'ReporteClientes',
-  components: { Bar },
-  props: {
-    chartData: Object,
-    options: Object
-  },
-  watch: {
-    chartData: {
-      handler() {
-        this.render();
-      },
-      deep: true
-    }
-  },
-  methods: {
-    render() {
-      this.$refs.barChart.renderChart(this.chartData, this.options);
-    }
-  },
-  mounted() {
-    this.render();
-  },
-  template: `
-    <Bar ref="barChart" :chart-data="chartData" :options="options" />
-  `
-});
-
 export default {
   name: 'ReporteClientes',
-  components: { BarChart },
+  components: { Bar },
   data() {
     const hoy = new Date();
     const mesPasado = new Date();

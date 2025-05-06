@@ -851,7 +851,6 @@ INSERT INTO pedidos (id_pedido, id_cliente, id_empleado, id_localizacion, estado
 (40, 13, 57, 22, 'completado', 'local', 5.92, 3.98, 'Nota del pedido 40', NOW() + interval '30 minutes'),
 (41, 38, 46, 48, 'cancelado', 'local', 9.88, 2.06, 'Nota del pedido 41', NOW() + interval '30 minutes'),
 (42, 88, 24, 22, 'en preparacion', 'local', 17.19, 1.91, 'Nota del pedido 42', NOW() + interval '30 minutes'),
--- Pedidos 43 a 100: datos dummy para satisfacer las referencias
 (43, 1, 1, 1, 'pendiente', 'local', 1.00, 0.00, 'Pedido dummy', NOW() + interval '30 minutes'),
 (44, 1, 1, 1, 'pendiente', 'local', 1.00, 0.00, 'Pedido dummy', NOW() + interval '30 minutes'),
 (45, 1, 1, 1, 'pendiente', 'local', 1.00, 0.00, 'Pedido dummy', NOW() + interval '30 minutes'),
