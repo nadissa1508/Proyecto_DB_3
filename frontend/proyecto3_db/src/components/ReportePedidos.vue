@@ -244,18 +244,10 @@ export default {
 
 <style scoped>
 .reporte {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  max-width: 900px;
-  width: 100%;
-  background: #fff;
+  background-color: #f5e0c3; /* Beige tone from the palette */
   border-radius: 12px;
-  box-shadow: 0 2px 12px #0001;
-  padding: 2rem 2rem 1.5rem 2rem;
-  margin: 2rem auto;
+  padding: 2rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .filtros {
@@ -366,16 +358,24 @@ export default {
 }
 
 .paginacion button {
-  padding: 0.3rem 1.2rem;
-  border-radius: 6px;
-  border: 1px solid #aaa;
-  background: #f7f7f7;
+  background-color: #d9a066; /* Orange tone from the palette */
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-weight: bold;
   cursor: pointer;
-  font-weight: 500;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.paginacion button:hover {
+  background-color: #b87d4b; /* Darker orange for hover */
+  transform: translateY(-2px);
 }
 
 .paginacion button:disabled {
-  opacity: 0.5;
+  background-color: #e0e0e0;
+  color: #a0a0a0;
   cursor: not-allowed;
 }
 </style>
